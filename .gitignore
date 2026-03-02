@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.vite/
+
+# Environment files — NEVER commit real secrets
+.env
+.env.local
+.env.production
+.env.staging
+server/.env
+client/.env
+client/.env.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Runtime
+pids/
+*.pid
+*.seed
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker volumes
+.docker/
+
+# Firebase
+firebase-service-account.json
+serviceAccountKey.json
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# PWA
+sw.js
+workbox-*.js
