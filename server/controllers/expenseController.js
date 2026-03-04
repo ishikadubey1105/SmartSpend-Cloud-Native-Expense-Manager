@@ -1,6 +1,7 @@
 const { Types: { ObjectId } } = require('mongoose');
 const Expense = require('../models/Expense');
 const Budget = require('../models/Budget');
+const { clearUserCache } = require('../middleware/cache');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const toObjectId = (id) => new ObjectId(id);
@@ -99,6 +100,7 @@ const createExpense = async (req, res) => {
 
     const budgetAlert = await checkBudgetAlert(req.user._id, category, expense.date);
 
+    clearUserCache(req.user._id);
     res.status(201).json({ success: true, data: expense, budgetAlert });
 };
 
@@ -128,6 +130,8 @@ const updateExpense = async (req, res) => {
     );
 
     if (!expense) return res.status(404).json({ success: false, message: 'Expense not found' });
+
+    clearUserCache(req.user._id);
     res.json({ success: true, data: expense });
 };
 
@@ -135,6 +139,8 @@ const updateExpense = async (req, res) => {
 const deleteExpense = async (req, res) => {
     const expense = await Expense.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!expense) return res.status(404).json({ success: false, message: 'Expense not found' });
+
+    clearUserCache(req.user._id);
     res.json({ success: true, message: 'Expense deleted successfully' });
 };
 
@@ -149,6 +155,8 @@ const bulkDeleteExpenses = async (req, res) => {
     if (!valid) return res.status(400).json({ success: false, message: 'One or more IDs are invalid' });
 
     const result = await Expense.deleteMany({ _id: { $in: ids }, userId: req.user._id });
+
+    if (result.deletedCount > 0) clearUserCache(req.user._id);
     res.json({ success: true, message: `${result.deletedCount} expense(s) deleted` });
 };
 

@@ -18,6 +18,7 @@ if (missingEnv.length) {
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const compression = require('compression');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const logger = require('./config/logger');
@@ -34,6 +35,8 @@ const exportRoutes = require('./routes/exportRoutes');
 const insightsRoutes = require('./routes/insightsRoutes');
 
 const app = express();
+
+app.use(compression());
 
 // ── Security Middleware ─────────────────────────────────────────────────────
 app.use(helmet({

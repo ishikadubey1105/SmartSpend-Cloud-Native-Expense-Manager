@@ -193,8 +193,15 @@ export default function Layout({ children }) {
                                 animation: 'pulse-glow 2s infinite',
                             }} />
                             <span style={{ fontSize: '0.8rem', color: 'var(--success)', fontWeight: 600 }}>Live</span>
+                            <button
+                                onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
+                                className="btn btn-ghost"
+                                style={{ padding: '6px 12px', fontSize: '0.8rem', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}
+                                title="Open Command Palette"
+                            >
+                                <span style={{ marginRight: 6 }}>🔍</span> Search <kbd style={{ background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 4, marginLeft: 4, fontSize: '0.7rem' }}>Ctrl+K</kbd>
+                            </button>
                         </div>
-                    </div>
                 </header>
 
                 <div className="page-content">

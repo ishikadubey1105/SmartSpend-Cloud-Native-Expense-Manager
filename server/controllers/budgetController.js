@@ -1,6 +1,7 @@
 const Budget = require('../models/Budget');
 const { Types: { ObjectId } } = require('mongoose');
 const Expense = require('../models/Expense');
+const { clearUserCache } = require('../middleware/cache');
 
 // @desc    Get all budgets with real-time spent amounts
 // @route   GET /api/budgets
@@ -33,7 +34,7 @@ const getBudgets = async (req, res) => {
             usedPercent: Math.round((s.spent / b.limit) * 100),
             transactionCount: s.count,
             isOverBudget: s.spent > b.limit,
-            isNearLimit: !s.spent > b.limit && (s.spent / b.limit) * 100 >= b.alertThreshold,
+            isNearLimit: !(s.spent > b.limit) && (s.spent / b.limit) * 100 >= (b.alertThreshold || 80),
         };
     });
 
@@ -64,6 +65,7 @@ const upsertBudget = async (req, res) => {
     const statusCode = existing ? 200 : 201;
     const message = existing ? 'Budget updated successfully' : 'Budget created successfully';
 
+    clearUserCache(req.user._id);
     res.status(statusCode).json({ success: true, message, data: budget, isNew: !existing });
 };
 
@@ -72,6 +74,8 @@ const upsertBudget = async (req, res) => {
 const deleteBudget = async (req, res) => {
     const budget = await Budget.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!budget) return res.status(404).json({ success: false, message: 'Budget not found' });
+
+    clearUserCache(req.user._id);
     res.json({ success: true, message: 'Budget deleted successfully' });
 };
 

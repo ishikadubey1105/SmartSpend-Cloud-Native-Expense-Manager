@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
+import CommandPalette from './components/CommandPalette';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import ExpensesPage from './pages/ExpensesPage';
@@ -16,7 +17,7 @@ function ProtectedRoute({ children }) {
       <div className="spinner" style={{ width: 40, height: 40, borderWidth: 4 }} />
     </div>
   );
-  return user ? children : <Navigate to="/login" replace />;
+  return user ? <>{children}<CommandPalette /></> : <Navigate to="/login" replace />;
 }
 
 export default function App() {

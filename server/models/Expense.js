@@ -63,8 +63,9 @@ const expenseSchema = new mongoose.Schema(
     }
 );
 
-// Index for efficient querying
+// Indexes for efficient querying & aggregations
 expenseSchema.index({ userId: 1, date: -1 });
-expenseSchema.index({ userId: 1, category: 1 });
+expenseSchema.index({ userId: 1, date: -1, category: 1 }); // Essential for monthly category stats
+expenseSchema.index({ userId: 1, isRecurring: 1, date: -1 }); // Speeds up recurring analytics
 
 module.exports = mongoose.model('Expense', expenseSchema);

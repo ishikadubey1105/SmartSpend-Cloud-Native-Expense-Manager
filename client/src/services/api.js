@@ -21,12 +21,17 @@ api.interceptors.request.use(async (config) => {
     return config;
 });
 
-// Response interceptor for error handling
+// Response interceptor — preserves validation errors array for the UI
 api.interceptors.response.use(
     (response) => response.data,
     (error) => {
-        const message = error.response?.data?.message || 'Something went wrong';
-        return Promise.reject(new Error(message));
+        const data = error.response?.data;
+        const message = data?.message || 'Something went wrong';
+        const err = new Error(message);
+        // Attach server-side validation errors so pages can display per-field errors
+        if (data?.errors) err.errors = data.errors;
+        err.status = error.response?.status;
+        return Promise.reject(err);
     }
 );
 
@@ -66,7 +71,6 @@ export const budgetAPI = {
 };
 
 // -------- Export API --------
-// These return raw binary — use directly with window.location or fetch with blob
 export const exportAPI = {
     csvUrl: (params = {}) => {
         const qs = new URLSearchParams(params).toString();
@@ -76,13 +80,13 @@ export const exportAPI = {
         const qs = new URLSearchParams(params).toString();
         return `${API_BASE}/export/pdf${qs ? '?' + qs : ''}`;
     },
-    // Download helper — fetches with auth token then triggers browser download
     download: async (type, params = {}) => {
         const { auth } = await import('../config/firebase');
         const token = await auth.currentUser?.getIdToken();
         const qs = new URLSearchParams(params).toString();
         const url = `${API_BASE}/export/${type}${qs ? '?' + qs : ''}`;
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) throw new Error(`Export failed (${res.status})`);
         const blob = await res.blob();
         const objectUrl = URL.createObjectURL(blob);
         const a = document.createElement('a');
