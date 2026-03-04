@@ -36,7 +36,8 @@ export default function LoginPage() {
             await signInWithGoogle();
             toast.success('Signed in with Google! 🚀');
         } catch (err) {
-            toast.error('Google sign-in failed');
+            console.error(err);
+            toast.error(`Google sign-in failed: ${err.message}`);
         } finally {
             setLoading(false);
         }

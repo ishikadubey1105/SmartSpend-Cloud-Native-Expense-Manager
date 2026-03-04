@@ -100,7 +100,16 @@ app.use('/api/budgets', budgetRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/insights', insightsRoutes);
 
-// ── Health Check ────────────────────────────────────────────────────────────
+// ── Routes ────────────────────────────────────────────────────────────────────
+app.get('/', (req, res) => {
+    res.send(`
+        <div style="font-family: sans-serif; padding: 40px; text-align: center;">
+            <h1 style="color: #10b981;">✅ SmartSpend API is Live</h1>
+            <p>The backend is running successfully. Requests should be made to <code>/api/*</code>.</p>
+        </div>
+    `);
+});
+
 app.get('/api/health', (req, res) => {
     res.json({
         success: true,
