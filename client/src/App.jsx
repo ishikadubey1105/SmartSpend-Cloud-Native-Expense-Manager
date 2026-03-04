@@ -7,6 +7,7 @@ import ExpensesPage from './pages/ExpensesPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import BudgetPage from './pages/BudgetPage';
 import SettingsPage from './pages/SettingsPage';
+import InsightsPage from './pages/InsightsPage';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -36,6 +37,7 @@ export default function App() {
                 <Route path="/analytics" element={<AnalyticsPage />} />
                 <Route path="/budgets" element={<BudgetPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/insights" element={<InsightsPage />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </Layout>

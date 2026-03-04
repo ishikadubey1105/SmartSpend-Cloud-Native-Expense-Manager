@@ -1,0 +1,13 @@
+{
+    "testEnvironment": "node",
+    "coverageDirectory": "coverage",
+    "collectCoverageFrom": [
+        "controllers/**/*.js",
+        "middleware/**/*.js",
+        "routes/**/*.js"
+    ],
+    "testTimeout": 30000,
+    "setupFiles": [
+        "<rootDir>/tests/setup.js"
+    ]
+}

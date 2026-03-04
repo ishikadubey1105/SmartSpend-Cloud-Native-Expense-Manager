@@ -1,25 +1,26 @@
 const express = require('express');
 const router = express.Router();
+
 const authenticate = require('../middleware/auth');
+const { expenseCreateRules, expenseUpdateRules, paginationRules } = require('../middleware/validate');
 const {
-    getExpenses,
-    getExpense,
-    createExpense,
-    updateExpense,
-    deleteExpense,
-    bulkDeleteExpenses,
+    getExpenses, getExpense, createExpense,
+    updateExpense, deleteExpense, bulkDeleteExpenses, getAnomalies,
 } = require('../controllers/expenseController');
 
-router.use(authenticate); // All expense routes require auth
+router.use(authenticate);
 
 router.route('/')
-    .get(getExpenses)
-    .post(createExpense)
-    .delete(bulkDeleteExpenses);
+    .get(paginationRules, getExpenses)
+    .post(expenseCreateRules, createExpense);
+
+router.get('/anomalies', getAnomalies);
+
+router.delete('/bulk', bulkDeleteExpenses);
 
 router.route('/:id')
     .get(getExpense)
-    .put(updateExpense)
+    .put(expenseUpdateRules, updateExpense)
     .delete(deleteExpense);
 
 module.exports = router;

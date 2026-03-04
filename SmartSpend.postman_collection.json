@@ -1,0 +1,472 @@
+{
+    "info": {
+        "name": "SmartSpend API",
+        "description": "Cloud-Native Expense Manager — Complete API Reference\n\nBase URL: http://localhost:5000\n\nAll protected endpoints require an Authorization header:\n`Authorization: Bearer <Firebase ID Token>`\n\nGet your token by signing in and running:\n```js\nconst token = await firebase.auth().currentUser.getIdToken();\n```",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        "version": {
+            "major": 1,
+            "minor": 0,
+            "patch": 0
+        }
+    },
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{FIREBASE_TOKEN}}",
+                "type": "string"
+            }
+        ]
+    },
+    "variable": [
+        {
+            "key": "BASE_URL",
+            "value": "http://localhost:5000"
+        },
+        {
+            "key": "FIREBASE_TOKEN",
+            "value": "your-firebase-id-token-here"
+        },
+        {
+            "key": "EXPENSE_ID",
+            "value": ""
+        },
+        {
+            "key": "BUDGET_ID",
+            "value": ""
+        }
+    ],
+    "item": [
+        {
+            "name": "🔍 Health Check",
+            "item": [
+                {
+                    "name": "GET /api/health",
+                    "request": {
+                        "method": "GET",
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "url": "{{BASE_URL}}/api/health",
+                        "description": "Returns API health status, version, and environment. No auth required."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "👤 Users",
+            "item": [
+                {
+                    "name": "POST /api/users/sync",
+                    "request": {
+                        "method": "POST",
+                        "url": "{{BASE_URL}}/api/users/sync",
+                        "description": "Sync Firebase user to MongoDB after first sign-in. Call this immediately after login.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "GET /api/users/me",
+                    "request": {
+                        "method": "GET",
+                        "url": "{{BASE_URL}}/api/users/me",
+                        "description": "Get current user profile including currency and monthly budget settings."
+                    }
+                },
+                {
+                    "name": "PUT /api/users/me",
+                    "request": {
+                        "method": "PUT",
+                        "url": "{{BASE_URL}}/api/users/me",
+                        "description": "Update user profile. All fields are optional.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"displayName\": \"Updated Name\",\n  \"currency\": \"INR\",\n  \"monthlyBudget\": 25000\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "💳 Expenses",
+            "item": [
+                {
+                    "name": "GET /api/expenses",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/expenses?page=1&limit=15&category=Food&sortBy=date&sortOrder=desc",
+                            "host": [
+                                "{{BASE_URL}}"
+                            ],
+                            "path": [
+                                "api",
+                                "expenses"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1",
+                                    "description": "Page number (default: 1)"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "15",
+                                    "description": "Records per page (max: 100)"
+                                },
+                                {
+                                    "key": "category",
+                                    "value": "Food",
+                                    "description": "Filter by category"
+                                },
+                                {
+                                    "key": "startDate",
+                                    "value": "",
+                                    "description": "ISO date filter start"
+                                },
+                                {
+                                    "key": "endDate",
+                                    "value": "",
+                                    "description": "ISO date filter end"
+                                },
+                                {
+                                    "key": "search",
+                                    "value": "",
+                                    "description": "Full text search (title, description, tags)"
+                                },
+                                {
+                                    "key": "paymentMethod",
+                                    "value": "",
+                                    "description": "Filter by payment method"
+                                },
+                                {
+                                    "key": "sortBy",
+                                    "value": "date",
+                                    "description": "Sort field"
+                                },
+                                {
+                                    "key": "sortOrder",
+                                    "value": "desc",
+                                    "description": "asc | desc"
+                                }
+                            ]
+                        },
+                        "description": "Get paginated expenses with optional filters."
+                    }
+                },
+                {
+                    "name": "POST /api/expenses",
+                    "request": {
+                        "method": "POST",
+                        "url": "{{BASE_URL}}/api/expenses",
+                        "description": "Create a new expense. Returns budgetAlert if a budget threshold is crossed.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"title\": \"Coffee at Starbucks\",\n  \"amount\": 250.00,\n  \"category\": \"Food\",\n  \"paymentMethod\": \"UPI\",\n  \"date\": \"2026-03-04\",\n  \"description\": \"Morning coffee\",\n  \"isRecurring\": false,\n  \"tags\": [\"work\", \"morning\"]\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "GET /api/expenses/:id",
+                    "request": {
+                        "method": "GET",
+                        "url": "{{BASE_URL}}/api/expenses/{{EXPENSE_ID}}",
+                        "description": "Get a single expense by ID."
+                    }
+                },
+                {
+                    "name": "PUT /api/expenses/:id",
+                    "request": {
+                        "method": "PUT",
+                        "url": "{{BASE_URL}}/api/expenses/{{EXPENSE_ID}}",
+                        "description": "Update expense (only provided fields are changed). Protected from mass assignment.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"amount\": 300,\n  \"title\": \"Updated title\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /api/expenses/:id",
+                    "request": {
+                        "method": "DELETE",
+                        "url": "{{BASE_URL}}/api/expenses/{{EXPENSE_ID}}",
+                        "description": "Delete a single expense by ID."
+                    }
+                },
+                {
+                    "name": "DELETE /api/expenses/bulk",
+                    "request": {
+                        "method": "DELETE",
+                        "url": "{{BASE_URL}}/api/expenses/bulk",
+                        "description": "Delete multiple expenses in one call.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"ids\": [\"expense_id_1\", \"expense_id_2\"]\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "GET /api/expenses/anomalies",
+                    "request": {
+                        "method": "GET",
+                        "url": "{{BASE_URL}}/api/expenses/anomalies",
+                        "description": "Returns expenses from this month with z-score > 2.0 compared to the past 3-month baseline per category."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "🎯 Budgets",
+            "item": [
+                {
+                    "name": "GET /api/budgets",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/budgets?month=3&year=2026",
+                            "host": [
+                                "{{BASE_URL}}"
+                            ],
+                            "path": [
+                                "api",
+                                "budgets"
+                            ],
+                            "query": [
+                                {
+                                    "key": "month",
+                                    "value": "3",
+                                    "description": "Month (1-12, defaults to current)"
+                                },
+                                {
+                                    "key": "year",
+                                    "value": "2026",
+                                    "description": "Year (defaults to current)"
+                                }
+                            ]
+                        },
+                        "description": "Get all budgets with real-time spent amounts, remaining, usedPercent."
+                    }
+                },
+                {
+                    "name": "POST /api/budgets (upsert)",
+                    "request": {
+                        "method": "POST",
+                        "url": "{{BASE_URL}}/api/budgets",
+                        "description": "Create (201) or update (200) a budget. Response includes isNew flag.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"category\": \"Food\",\n  \"limit\": 5000,\n  \"alertThreshold\": 80,\n  \"month\": 3,\n  \"year\": 2026\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /api/budgets/:id",
+                    "request": {
+                        "method": "DELETE",
+                        "url": "{{BASE_URL}}/api/budgets/{{BUDGET_ID}}",
+                        "description": "Delete a budget. Returns 404 if not found."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "📊 Analytics",
+            "item": [
+                {
+                    "name": "GET /api/analytics/summary",
+                    "request": {
+                        "method": "GET",
+                        "url": "{{BASE_URL}}/api/analytics/summary",
+                        "description": "Dashboard summary: total this month, today, all-time, predicted month-end, budgetUsedPercent, recurring cost, category breakdown, recent 5 expenses."
+                    }
+                },
+                {
+                    "name": "GET /api/analytics/trends",
+                    "request": {
+                        "method": "GET",
+                        "url": "{{BASE_URL}}/api/analytics/trends",
+                        "description": "12-month spending trends with 3-month rolling average (ma3) per month."
+                    }
+                },
+                {
+                    "name": "GET /api/analytics/categories",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/analytics/categories?month=3&year=2026",
+                            "host": [
+                                "{{BASE_URL}}"
+                            ],
+                            "path": [
+                                "api",
+                                "analytics",
+                                "categories"
+                            ],
+                            "query": [
+                                {
+                                    "key": "month",
+                                    "value": "3"
+                                },
+                                {
+                                    "key": "year",
+                                    "value": "2026"
+                                }
+                            ]
+                        },
+                        "description": "Per-category stats (total, count, max, min, avg, stdDev) with budget used % if budget exists."
+                    }
+                },
+                {
+                    "name": "GET /api/analytics/daily",
+                    "request": {
+                        "method": "GET",
+                        "url": "{{BASE_URL}}/api/analytics/daily",
+                        "description": "Daily spending for the current month."
+                    }
+                },
+                {
+                    "name": "GET /api/analytics/payment-methods",
+                    "request": {
+                        "method": "GET",
+                        "url": "{{BASE_URL}}/api/analytics/payment-methods",
+                        "description": "Payment method breakdown for current month."
+                    }
+                },
+                {
+                    "name": "GET /api/analytics/recurring",
+                    "request": {
+                        "method": "GET",
+                        "url": "{{BASE_URL}}/api/analytics/recurring",
+                        "description": "Recurring vs discretionary spending analysis with % split."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "📤 Export",
+            "item": [
+                {
+                    "name": "GET /api/export/csv",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/export/csv?month=3&year=2026",
+                            "host": [
+                                "{{BASE_URL}}"
+                            ],
+                            "path": [
+                                "api",
+                                "export",
+                                "csv"
+                            ],
+                            "query": [
+                                {
+                                    "key": "month",
+                                    "value": "3"
+                                },
+                                {
+                                    "key": "year",
+                                    "value": "2026"
+                                }
+                            ]
+                        },
+                        "description": "Download expenses as CSV. Content-Disposition triggers browser download."
+                    }
+                },
+                {
+                    "name": "GET /api/export/pdf",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/export/pdf?month=3&year=2026",
+                            "host": [
+                                "{{BASE_URL}}"
+                            ],
+                            "path": [
+                                "api",
+                                "export",
+                                "pdf"
+                            ],
+                            "query": [
+                                {
+                                    "key": "month",
+                                    "value": "3"
+                                },
+                                {
+                                    "key": "year",
+                                    "value": "2026"
+                                }
+                            ]
+                        },
+                        "description": "Branded PDF report with dynamic row heights, page breaks, alternating shading."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "🤖 AI Insights",
+            "item": [
+                {
+                    "name": "GET /api/insights",
+                    "request": {
+                        "method": "GET",
+                        "url": "{{BASE_URL}}/api/insights",
+                        "description": "Gemini AI analysis of current month expenses. Rate-limited: 5 req/min. Returns markdown insights covering spending pattern, savings tip, budget alert, and month-end prediction."
+                    }
+                },
+                {
+                    "name": "POST /api/insights/categorize",
+                    "request": {
+                        "method": "POST",
+                        "url": "{{BASE_URL}}/api/insights/categorize",
+                        "description": "AI suggests the best category for an expense title.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"title\": \"Netflix subscription\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

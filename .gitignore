@@ -52,3 +52,21 @@ coverage/
 # PWA
 sw.js
 workbox-*.js
+
+# Server log files (keep the folder via .gitkeep)
+server/logs/*.log
+server/logs/*.gz
+
+# Jest
+.jest-cache/
+server/coverage/
+client/coverage/
+
+# Temp / scratch
+tmp/
+.tmp/
+
+# Terraform / IaC
+*.tfstate
+*.tfstate.backup
+.terraform/

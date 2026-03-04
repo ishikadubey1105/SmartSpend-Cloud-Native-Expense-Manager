@@ -4,6 +4,7 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
     baseURL: API_BASE,
+    timeout: 30000,
     headers: {
         'Content-Type': 'application/json',
     },
@@ -43,7 +44,8 @@ export const expenseAPI = {
     create: (data) => api.post('/expenses', data),
     update: (id, data) => api.put(`/expenses/${id}`, data),
     delete: (id) => api.delete(`/expenses/${id}`),
-    bulkDelete: (ids) => api.delete('/expenses', { data: { ids } }),
+    bulkDelete: (ids) => api.delete('/expenses/bulk', { data: { ids } }),
+    getAnomalies: () => api.get('/expenses/anomalies'),
 };
 
 // -------- Analytics API --------
@@ -53,6 +55,7 @@ export const analyticsAPI = {
     getCategories: (params) => api.get('/analytics/categories', { params }),
     getDaily: () => api.get('/analytics/daily'),
     getPaymentMethods: () => api.get('/analytics/payment-methods'),
+    getRecurring: () => api.get('/analytics/recurring'),
 };
 
 // -------- Budget API --------
@@ -90,5 +93,10 @@ export const exportAPI = {
     },
 };
 
-export default api;
+// -------- Insights API (AI) --------
+export const insightsAPI = {
+    get: () => api.get('/insights'),
+    categorize: (title) => api.post('/insights/categorize', { title }),
+};
 
+export default api;

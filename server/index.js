@@ -1,90 +1,172 @@
 require('dotenv').config();
+require('express-async-errors'); // Catch async errors globally — no try/catch needed
+
+// ── Startup Environment Validation ─────────────────────────────────────────
+const REQUIRED_ENV = [
+    'MONGODB_URI',
+    'FIREBASE_PROJECT_ID',
+    'FIREBASE_PRIVATE_KEY',
+    'FIREBASE_CLIENT_EMAIL',
+    'CLIENT_URL',
+];
+const missingEnv = REQUIRED_ENV.filter((k) => !process.env[k]);
+if (missingEnv.length) {
+    console.error(`\n❌ STARTUP FAILED — Missing required environment variables:\n   ${missingEnv.join(', ')}\n`);
+    process.exit(1);
+}
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const logger = require('./config/logger');
 
 const connectDB = require('./config/db');
 const initializeFirebase = require('./config/firebase');
 
-// Route imports
+// Routes
 const userRoutes = require('./routes/userRoutes');
 const expenseRoutes = require('./routes/expenseRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const budgetRoutes = require('./routes/budgetRoutes');
 const exportRoutes = require('./routes/exportRoutes');
+const insightsRoutes = require('./routes/insightsRoutes');
 
 const app = express();
 
-// ----- Middleware -----
-app.use(helmet());
-app.use(cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
-    credentials: true,
+// ── Security Middleware ─────────────────────────────────────────────────────
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+        },
+    },
+    crossOriginEmbedderPolicy: false,
 }));
+
+app.use(cors({
+    origin: (origin, cb) => {
+        const allowed = [
+            process.env.CLIENT_URL,
+            'http://localhost:5173',
+            'http://localhost:3000',
+        ].filter(Boolean);
+        if (!origin || allowed.includes(origin)) cb(null, true);
+        else cb(new Error(`CORS: ${origin} not allowed`));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+}));
+
 app.use(express.json({ limit: '10mb' }));
-app.use(morgan('dev'));
+app.use(express.urlencoded({ extended: true }));
 
-// Rate limiting
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100,
-    message: { success: false, message: 'Too many requests, try again later.' },
+// HTTP request logging  
+if (process.env.NODE_ENV !== 'test') {
+    app.use(morgan('combined', { stream: { write: (msg) => logger.http(msg.trim()) } }));
+}
+
+// ── Rate Limiting ───────────────────────────────────────────────────────────
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many requests. Please try again later.' },
 });
-app.use('/api/', limiter);
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: { success: false, message: 'Too many auth requests.' },
+});
 
-// ----- Initialize Services -----
+app.use('/api/', apiLimiter);
+app.use('/api/users/sync', authLimiter);
+
+// ── Initialize Services ─────────────────────────────────────────────────────
 initializeFirebase();
 
-// ----- API Routes -----
+// ── API Routes ──────────────────────────────────────────────────────────────
 app.use('/api/users', userRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/budgets', budgetRoutes);
 app.use('/api/export', exportRoutes);
+app.use('/api/insights', insightsRoutes);
 
-// Health check
+// ── Health Check ────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
     res.json({
         success: true,
-        message: 'SmartSpend API is running 🚀',
+        message: 'SmartSpend API is operational 🚀',
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development',
+        version: '1.0.0',
     });
 });
 
-// 404 handler
+// ── 404 Handler ─────────────────────────────────────────────────────────────
 app.use((req, res) => {
-    res.status(404).json({ success: false, message: 'Route not found' });
+    res.status(404).json({ success: false, message: `Route ${req.method} ${req.path} not found` });
 });
 
-// Global error handler
+// ── Global Error Handler ─────────────────────────────────────────────────────
+// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-    console.error('❌ Error:', err.stack);
+    logger.error(`${err.status || 500} — ${err.message} — ${req.method} ${req.path}`);
+
+    if (err.name === 'ValidationError') {
+        return res.status(400).json({ success: false, message: err.message });
+    }
+    if (err.code === 11000) {
+        const field = Object.keys(err.keyValue || {})[0] || 'field';
+        return res.status(409).json({ success: false, message: `${field} already exists` });
+    }
+    if (err.name === 'CastError') {
+        return res.status(400).json({ success: false, message: 'Invalid ID format' });
+    }
+
     res.status(err.status || 500).json({
         success: false,
-        message: err.message || 'Internal Server Error',
+        message: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message,
+        ...(process.env.NODE_ENV !== 'production' && { stack: err.stack }),
     });
 });
 
-// ----- Start Server -----
-const PORT = process.env.PORT || 5000;
+// ── Start Server ──────────────────────────────────────────────────────────────
+const PORT = parseInt(process.env.PORT) || 5000;
 
 const startServer = async () => {
     try {
         await connectDB();
-        app.listen(PORT, () => {
-            console.log(`\n🚀 SmartSpend Server running on port ${PORT}`);
-            console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`);
-            console.log(`🌐 Health: http://localhost:${PORT}/api/health\n`);
+        const server = app.listen(PORT, () => {
+            logger.info(`🚀 SmartSpend Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
         });
+
+        // Graceful shutdown
+        const shutdown = (signal) => {
+            logger.info(`${signal} received — shutting down gracefully...`);
+            server.close(async () => {
+                const mongoose = require('mongoose');
+                await mongoose.connection.close();
+                logger.info('MongoDB connection closed. Process terminated.');
+                process.exit(0);
+            });
+        };
+        process.on('SIGTERM', () => shutdown('SIGTERM'));
+        process.on('SIGINT', () => shutdown('SIGINT'));
+
     } catch (error) {
-        console.error('Failed to start server:', error);
+        logger.error('Failed to start server:', error);
         process.exit(1);
     }
 };
 
-startServer();
+if (process.env.NODE_ENV !== 'test') {
+    startServer();
+}
 
 module.exports = app;
