@@ -10,9 +10,9 @@ const REQUIRED_ENV = [
     'CLIENT_URL',
 ];
 const missingEnv = REQUIRED_ENV.filter((k) => !process.env[k]);
-if (missingEnv.length) {
+if (missingEnv.length && !process.env.VERCEL) {
     console.error(`\n❌ STARTUP FAILED — Missing required environment variables:\n   ${missingEnv.join(', ')}\n`);
-    process.exit(1);
+    // In local dev, we might still exit, but in Vercel we want to show a web page error instead of crashing the function
 }
 
 const express = require('express');
@@ -35,6 +35,28 @@ const exportRoutes = require('./routes/exportRoutes');
 const insightsRoutes = require('./routes/insightsRoutes');
 
 const app = express();
+
+// ── Vercel Config Validator Middleware ───────────────────────────────────────
+app.use((req, res, next) => {
+    const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
+    if (missing.length > 0) {
+        return res.status(500).send(`
+            <div style="font-family: sans-serif; padding: 40px; max-width: 600px; margin: 0 auto;">
+                <h1 style="color: #ef4444;">Deploy Configuration Error</h1>
+                <p>The Vercel Serverless Function is running, but it cannot connect to the database or Firebase because the following Environment Variables are missing in your Vercel Dashboard:</p>
+                <ul>${missing.map(k => `<li style="margin-bottom: 8px;"><code>${k}</code></li>`).join('')}</ul>
+                <p><strong>How to fix this:</strong></p>
+                <ol>
+                    <li>Go to your project on Vercel.com</li>
+                    <li>Click <strong>Settings</strong> ➔ <strong>Environment Variables</strong></li>
+                    <li>Add the missing keys listed above with their correct values</li>
+                    <li>Go to <strong>Deployments</strong> ➔ click the 3 dots ➔ <strong>Redeploy</strong></li>
+                </ol>
+            </div>
+        `);
+    }
+    next();
+});
 
 app.use(compression());
 
@@ -89,8 +111,19 @@ const authLimiter = rateLimit({
 app.use('/api/', apiLimiter);
 app.use('/api/users/sync', authLimiter);
 
-// ── Initialize Services ─────────────────────────────────────────────────────
-initializeFirebase();
+// ── Initialize Services safely ──────────────────────────────────────────────
+if (!missingEnv.includes('FIREBASE_PRIVATE_KEY') && !missingEnv.includes('FIREBASE_PROJECT_ID')) {
+    try {
+        initializeFirebase();
+    } catch (e) {
+        logger.error('Firebase Initialization failed:', e.message);
+    }
+}
+
+// In Vercel serverless we connect to DB immediately outside of app.listen
+if (process.env.VERCEL && !missingEnv.includes('MONGODB_URI')) {
+    connectDB().catch(e => logger.error('Vercel MongoDB strict connection failed:', e));
+}
 
 // ── API Routes ──────────────────────────────────────────────────────────────
 app.use('/api/users', userRoutes);
@@ -177,7 +210,8 @@ const startServer = async () => {
     }
 };
 
-if (process.env.NODE_ENV !== 'test') {
+// Only spin up the actual HTTP listener in local dev (Vercel Serverless acts as its own listener)
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
     startServer();
 }
 
