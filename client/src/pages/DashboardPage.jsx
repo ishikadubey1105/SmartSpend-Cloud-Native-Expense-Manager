@@ -1,90 +1,72 @@
-import { useEffect, useState, useCallback } from 'react';
-import { analyticsAPI, expenseAPI, exportAPI } from '../services/api';
+import React, { useEffect, useState, useCallback } from 'react';
+import { analyticsAPI, expenseAPI } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Canvas } from '@react-three/fiber';
+import { Sphere, MeshDistortMaterial, OrbitControls, Stars, Float, Sparkles, Html } from '@react-three/drei';
+import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
-import {
-    AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-    XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine
-} from 'recharts';
 
-const CATEGORY_COLORS = {
-    Food: '#fbbf24', Transport: '#60a5fa', Shopping: '#a78bfa',
-    Bills: '#f87171', Health: '#34d399', Education: '#fb923c',
-    Entertainment: '#f472b6', Other: '#94a3b8',
-};
-const CATEGORY_EMOJI = {
-    Food: '🍔', Transport: '🚗', Shopping: '🛍️', Bills: '⚡',
-    Health: '💊', Education: '📚', Entertainment: '🎮', Other: '📌',
-};
+const CATEGORY_COLORS = { Food: '#fbbf24', Transport: '#60a5fa', Shopping: '#a78bfa', Bills: '#f87171', Health: '#34d399', Education: '#fb923c', Entertainment: '#f472b6', Other: '#94a3b8' };
+const CATEGORY_EMOJI = { Food: '🍔', Transport: '🚗', Shopping: '🛍️', Bills: '⚡', Health: '💊', Education: '📚', Entertainment: '🎮', Other: '📌' };
 
-// ── Skeleton Cards ──────────────────────────────────────────────────────────
-function SkeletonStatCard() {
+// ── 3D Background Engine ─────────────────────────────────────────────────────
+function SciFiGalaxy() {
     return (
-        <div className="stat-card">
-            <div className="flex justify-between items-center mb-4">
-                <div className="skeleton" style={{ width: 100, height: 12, borderRadius: 4 }} />
-                <div className="skeleton" style={{ width: 40, height: 40, borderRadius: 8 }} />
-            </div>
-            <div className="skeleton" style={{ width: 120, height: 32, borderRadius: 6, marginBottom: 12 }} />
-            <div className="skeleton" style={{ width: 80, height: 10, borderRadius: 4 }} />
-        </div>
+        <Canvas style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: -1, background: '#020617', pointerEvents: 'none' }}>
+            <ambientLight intensity={0.5} />
+            <directionalLight position={[10, 10, 10]} intensity={2} color="#0df259" />
+            <directionalLight position={[-10, -10, -10]} intensity={2} color="#0ea5e9" />
+
+            <Stars radius={100} depth={50} count={6000} factor={4} saturation={1} fade speed={1.5} />
+            <Sparkles count={200} scale={20} size={4} speed={0.4} opacity={0.2} color="#10b981" />
+
+            <Float speed={2} rotationIntensity={1.5} floatIntensity={2} position={[4, 1, -10]}>
+                <Sphere args={[2.5, 64, 64]}>
+                    <MeshDistortMaterial color="#000000" envMapIntensity={1} clearcoat={1} clearcoatRoughness={0} metalness={0.9} roughness={0.1} distort={0.6} speed={2} emissive="#0ea5e9" emissiveIntensity={0.6} wireframe />
+                </Sphere>
+            </Float>
+
+            <Float speed={3} rotationIntensity={2} floatIntensity={3} position={[-5, -3, -8]}>
+                <Sphere args={[1.5, 64, 64]}>
+                    <MeshDistortMaterial color="#000000" emissive="#10b981" emissiveIntensity={0.8} metalness={1} roughness={0} distort={0.5} speed={4} wireframe />
+                </Sphere>
+            </Float>
+            <OrbitControls enableZoom={false} enablePan={false} autoRotate autoRotateSpeed={0.5} />
+        </Canvas>
     );
 }
 
-function SkeletonChartCard() {
+// ── Interactive Glass 3D Panes ───────────────────────────────────────────────
+function GlassPane({ children, delay = 0, className = "" }) {
     return (
-        <div className="card">
-            <div className="flex justify-between items-center mb-6">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div className="skeleton" style={{ width: 120, height: 14, borderRadius: 4 }} />
-                    <div className="skeleton" style={{ width: 80, height: 10, borderRadius: 4 }} />
-                </div>
-                <div className="skeleton" style={{ width: 40, height: 22, borderRadius: 99 }} />
+        <motion.div
+            initial={{ opacity: 0, y: 30, rotateX: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
+            transition={{ duration: 0.8, delay, type: "spring", bounce: 0.4 }}
+            whileHover={{ y: -5, scale: 1.02, transition: { duration: 0.2 } }}
+            className={`relative backdrop-blur-2xl bg-[#0f172a]/40 border border-[#1e293b] shadow-[0_8px_32px_0_rgba(0,0,0,0.6)] rounded-[2rem] overflow-hidden ${className}`}
+            style={{ transformStyle: 'preserve-3d', perspective: '1000px' }}
+        >
+            <div className="absolute -inset-px bg-gradient-to-br from-[#0ea5e9]/20 via-transparent to-[#10b981]/20 opacity-0 hover:opacity-100 transition-opacity duration-700 pointer-events-none z-0" />
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+            <div className="relative z-10 p-6 sm:p-8 h-full flex flex-col">
+                {children}
             </div>
-            <div className="skeleton" style={{ width: '100%', height: 200, borderRadius: 8 }} />
-        </div>
+        </motion.div>
     );
 }
 
-// ── Custom Tooltip ──────────────────────────────────────────────────────────
-const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload?.length) {
-        return (
-            <div style={{
-                background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)', padding: '10px 14px', minWidth: 140,
-            }}>
-                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 6 }}>{label}</p>
-                {payload.map((p, i) => (
-                    <p key={i} style={{ color: p.color, fontWeight: 600, fontSize: '0.875rem' }}>
-                        {p.name === 'ma3' ? '3M Avg: ' : 'Total: '}₹{Number(p.value).toLocaleString('en-IN')}
-                    </p>
-                ))}
-            </div>
-        );
-    }
-    return null;
-};
-
-// ── Stat Card ───────────────────────────────────────────────────────────────
-function StatCard({ label, value, subLabel, icon, color, delay = 0 }) {
+// ── Kpi Glowing Value ────────────────────────────────────────────────────────
+function NeonValue({ label, value, colorClass = "text-white", prefix = "", suffix = "" }) {
     return (
-        <div className="stat-card animate-in" style={{ animationDelay: `${delay}ms` }}>
-            <div className="flex justify-between items-center mb-4">
-                <span className="metric-label">{label}</span>
-                <div className="cat-icon" style={{ background: `${color}20`, color, width: 40, height: 40, fontSize: '1.2rem' }}>
-                    {icon}
-                </div>
+        <div className="flex flex-col">
+            <span className="text-xs uppercase tracking-[0.2em] text-slate-400 font-bold mb-1">{label}</span>
+            <div className={`text-4xl md:text-5xl font-black tracking-tighter ${colorClass} drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]`}>
+                <span className="opacity-70 text-2xl md:text-3xl mr-1 font-medium">{prefix}</span>
+                {value}
+                <span className="opacity-70 text-2xl md:text-3xl ml-1 font-medium">{suffix}</span>
             </div>
-            <div className="metric-value" style={{ color }}>
-                {typeof value === 'string' ? value : `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
-            </div>
-            {subLabel && (
-                <div style={{ marginTop: 'var(--space-2)', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    {subLabel}
-                </div>
-            )}
         </div>
     );
 }
@@ -93,362 +75,245 @@ export default function DashboardPage() {
     const { dbUser } = useAuth();
     const navigate = useNavigate();
     const [summary, setSummary] = useState(null);
-    const [trends, setTrends] = useState([]);
     const [categories, setCategories] = useState([]);
-    const [anomalies, setAnomalies] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [exporting, setExporting] = useState(false);
 
     const loadData = useCallback(async () => {
         try {
-            const [s, t, c, a] = await Promise.all([
+            const [s, c] = await Promise.all([
                 analyticsAPI.getSummary(),
-                analyticsAPI.getTrends(),
-                analyticsAPI.getCategories(),
-                expenseAPI.getAnomalies(),
+                analyticsAPI.getCategories()
             ]);
             setSummary(s.data);
-            setTrends(t.data.slice(-6));
             setCategories(c.data.slice(0, 6));
-            setAnomalies(a.data || []);
         } catch {
-            toast.error('Failed to load dashboard data');
+            toast.error('Data Sync Failure: Retrying Connection...');
         } finally {
             setLoading(false);
         }
     }, []);
 
-    useEffect(() => { loadData(); }, [loadData]);
-
-    const handleExport = async (type) => {
-        setExporting(true);
-        try {
-            await exportAPI.download(type);
-            toast.success(`${type.toUpperCase()} exported!`);
-        } catch {
-            toast.error('Export failed');
-        } finally {
-            setExporting(false);
-        }
-    };
-
-    const greet = () => {
-        const h = new Date().getHours();
-        if (h < 12) return 'Good morning';
-        if (h < 17) return 'Good afternoon';
-        return 'Good evening';
-    };
+    useEffect(() => {
+        loadData();
+        document.body.classList.add('cyberspace-mode');
+        return () => document.body.classList.remove('cyberspace-mode');
+    }, [loadData]);
 
     const budgetPct = summary?.budgetUsedPercent || 0;
-    const hasAnomalies = anomalies.length > 0;
-    const prediction = summary?.predictedMonthEnd;
-    const willExceed = prediction && summary?.monthlyBudget && prediction > summary.monthlyBudget;
+    const isDanger = budgetPct >= 90;
 
-    if (loading) return (
-        <div className="animate-fade">
-            {/* Skeleton Header */}
-            <div className="flex justify-between items-center mb-6" style={{ flexWrap: 'wrap', gap: 16 }}>
-                <div>
-                    <div className="skeleton" style={{ width: 280, height: 36, borderRadius: 8, marginBottom: 8 }} />
-                    <div className="skeleton" style={{ width: 200, height: 14, borderRadius: 4 }} />
-                </div>
-                <div className="flex gap-3">
-                    <div className="skeleton" style={{ width: 80, height: 36, borderRadius: 8 }} />
-                    <div className="skeleton" style={{ width: 100, height: 36, borderRadius: 8 }} />
-                </div>
+    if (loading) {
+        return (
+            <div className="w-full h-[80vh] flex flex-col items-center justify-center pointer-events-none">
+                <style>{`
+                    .cyberspace-mode { background-color: #020617 !important; color: white !important; }
+                    .cyberspace-mode main { background: transparent !important; }
+                    .bg-surface { background: rgba(15, 23, 42, 0.4) !important; backdrop-filter: blur(12px) !important; border-color: rgba(255,255,255,0.05) !important; color: white !important; }
+                    .text-slate-800 { color: white !important; }
+                `}</style>
+                <div className="w-16 h-16 rounded-full border-t-2 border-b-2 border-[#0ea5e9] animate-spin border-t-transparent shadow-[0_0_15px_#0ea5e9]"></div>
+                <div className="mt-8 text-[#0ea5e9] tracking-[0.3em] font-bold text-sm uppercase animate-pulse">Initializing Spatial Matrix</div>
             </div>
-            {/* Skeleton Stat Grid */}
-            <div className="grid-4 mb-6">
-                {[0, 1, 2, 3].map(i => <SkeletonStatCard key={i} />)}
-            </div>
-            {/* Skeleton Chart Grid */}
-            <div className="grid-2 mb-6">
-                <SkeletonChartCard />
-                <SkeletonChartCard />
-            </div>
-        </div>
-    );
+        );
+    }
 
     return (
-        <div>
-            {/* Page Header */}
-            <div className="flex justify-between items-center mb-6" style={{ flexWrap: 'wrap', gap: 'var(--space-4)' }}>
-                <div>
-                    <h1 style={{ fontSize: '1.75rem' }}>
-                        {greet()}, {dbUser?.displayName?.split(' ')[0] || 'there'} 👋
-                    </h1>
-                    <p className="text-secondary text-sm mt-2">Here's what's happening with your finances today.</p>
-                </div>
-                <div className="flex gap-3">
-                    <button onClick={() => handleExport('csv')} disabled={exporting} className="btn btn-ghost btn-sm">📥 CSV</button>
-                    <button onClick={() => handleExport('pdf')} disabled={exporting} className="btn btn-secondary btn-sm">📄 PDF Report</button>
-                </div>
-            </div>
+        <div className="relative min-h-full pb-12 overflow-hidden w-full text-slate-100">
+            {/* Global Override Styles to make it seamlessly dark across the whole app wrapper */}
+            <style>{`
+                .cyberspace-mode { background-color: #020617 !important; color: white !important; }
+                .cyberspace-mode .min-h-screen, .cyberspace-mode main { background: transparent !important; }
+                .bg-surface { background: rgba(15, 23, 42, 0.3) !important; backdrop-filter: blur(20px) !important; border-color: rgba(255,255,255,0.05) !important; color: white !important; }
+                .text-slate-800, .text-slate-900 { color: white !important; }
+                .text-slate-500, .text-slate-600 { color: #94a3b8 !important; }
+                .border-slate-100, .border-slate-200 { border-color: rgba(255,255,255,0.05) !important; }
+            `}</style>
 
-            {/* ── Anomaly Alert ─────────────────────────────────────────────────── */}
-            {hasAnomalies && (
-                <div className="alert alert-warning mb-6 animate-in" role="alert" style={{ alignItems: 'flex-start', cursor: 'pointer' }} onClick={() => navigate('/expenses')}>
-                    <span style={{ fontSize: '1.3rem', flexShrink: 0 }}>🔍</span>
-                    <div>
-                        <strong>Unusual spending detected</strong>
-                        <p style={{ fontSize: '0.84rem', marginTop: 4, lineHeight: 1.5 }}>
-                            {anomalies.length} expense{anomalies.length > 1 ? 's' : ''} this month {anomalies.length > 1 ? 'are' : 'is'} significantly higher than your average: {' '}
-                            {anomalies.slice(0, 2).map(a => `${a.title} (₹${a.amount.toLocaleString('en-IN')} vs avg ₹${a.categoryMean})`).join(', ')}
-                            {anomalies.length > 2 ? ` +${anomalies.length - 2} more` : ''}. Click to review →
+            <SciFiGalaxy />
+
+            <div className="relative z-10 w-full max-w-7xl mx-auto selection:bg-[#0ea5e9]/30">
+                {/* Holographic Header */}
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.9, filter: 'blur(10px)' }}
+                    animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                    transition={{ duration: 1, ease: "easeOut" }}
+                    className="mb-10 lg:mb-16 mt-4 flex justify-between items-end flex-wrap gap-4"
+                >
+                    <div className="flex flex-col">
+                        <div className="flex items-center gap-3 mb-2">
+                            <span className="w-2 h-2 rounded-full bg-[#10b981] animate-ping" />
+                            <span className="text-[10px] tracking-[0.3em] uppercase text-[#10b981] font-bold">System Online • Connection Secure</span>
+                        </div>
+                        <h1 className="text-4xl lg:text-5xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-[#e2e8f0] to-[#94a3b8]">
+                            Command Center
+                        </h1>
+                        <p className="text-slate-400 font-medium text-sm lg:text-base mt-2 max-w-lg leading-relaxed">
+                            Welcome back, Agent {dbUser?.displayName?.split(' ')[0] || 'User'}. Your financial metrics are fully synced and rendering in real-time.
                         </p>
                     </div>
-                </div>
-            )}
+                </motion.div>
 
-            {/* ── Budget Alert ─────────────────────────────────────────────────── */}
-            {budgetPct >= 80 && summary?.monthlyBudget && (
-                <div className={`alert ${budgetPct >= 100 ? 'alert-danger' : 'alert-warning'} mb-4 animate-in`} role="alert">
-                    <span style={{ fontSize: '1.2rem' }}>{budgetPct >= 100 ? '🚨' : '⚠️'}</span>
-                    <div>
-                        <strong>{budgetPct >= 100 ? 'Monthly Budget Exceeded!' : 'Budget Alert!'}</strong>
-                        <span style={{ marginLeft: 8, fontWeight: 400 }}>
-                            You've used {budgetPct.toFixed(0)}% of your ₹{summary.monthlyBudget.toLocaleString('en-IN')} monthly budget.
-                        </span>
-                    </div>
-                </div>
-            )}
+                {/* ── Core Metrics Grid ── */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <GlassPane delay={0.1}>
+                        <NeonValue
+                            label="Total Spend / MTD"
+                            prefix="₹"
+                            value={summary?.totalThisMonth?.toLocaleString('en-IN') || 0}
+                            colorClass="text-white"
+                        />
+                        <div className="mt-auto pt-6 flex justify-between items-center text-xs font-bold uppercase tracking-wider text-slate-400">
+                            <span>{summary?.monthlyCount || 0} Transactions</span>
+                            <span className="text-[#0ea5e9] bg-[#0ea5e9]/10 px-2 py-1 rounded">Volume Normal</span>
+                        </div>
+                    </GlassPane>
 
-            {/* ── Spend Prediction Callout ──────────────────────────────────────── */}
-            {prediction > 0 && summary?.dayOfMonth >= 5 && (
-                <div className="prediction-callout mb-6 animate-in stagger-1">
-                    <div style={{
-                        width: 44, height: 44, borderRadius: 'var(--radius-md)', flexShrink: 0,
-                        background: willExceed ? 'rgba(245,158,11,0.15)' : 'rgba(16,185,129,0.15)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem',
-                    }}>
-                        {willExceed ? '📈' : '✅'}
-                    </div>
-                    <div>
-                        <div style={{ fontWeight: 700, fontSize: '0.95rem', color: willExceed ? 'var(--warning)' : 'var(--success)' }}>
-                            Month-End Prediction: ₹{prediction.toLocaleString('en-IN')}
+                    <GlassPane delay={0.2} className="relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-[#10b981] rounded-full mix-blend-screen filter blur-[50px] opacity-20 group-hover:opacity-40 transition-opacity duration-700" />
+                        <NeonValue
+                            label="Daily Telemetry"
+                            prefix="₹"
+                            value={summary?.totalToday?.toLocaleString('en-IN') || 0}
+                            colorClass="text-[#10b981]"
+                        />
+                        <div className="mt-auto pt-6 flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400">
+                            <span>Today's Load</span>
+                            <span className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 bg-[#10b981] rounded-full animate-pulse" />Live</span>
                         </div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: 4 }}>
-                            Based on your pace (₹{summary.totalThisMonth.toLocaleString('en-IN')} in {summary.dayOfMonth} days).
-                            {willExceed
-                                ? ` You're on track to exceed your ₹${summary.monthlyBudget.toLocaleString('en-IN')} budget by ₹${(prediction - summary.monthlyBudget).toLocaleString('en-IN')}.`
-                                : summary.monthlyBudget
-                                    ? ` Within your ₹${summary.monthlyBudget.toLocaleString('en-IN')} budget — great job! 🎉`
-                                    : ' Set a monthly budget in Settings to track progress.'
-                            }
-                        </div>
-                    </div>
-                </div>
-            )}
+                    </GlassPane>
 
-            {/* ── Stat Cards ────────────────────────────────────────────────────── */}
-            <div className="grid-4 mb-6" role="region" aria-label="Financial summary">
-                <StatCard label="Total This Month" value={summary?.totalThisMonth || 0} icon="💰" color="var(--primary-light)" subLabel={`${summary?.monthlyCount || 0} transactions`} delay={0} />
-                <StatCard label="Today's Spend" value={summary?.totalToday || 0} icon="📅" color="var(--accent)" subLabel={`${summary?.todayCount || 0} today`} delay={50} />
-                <StatCard label="All-Time Total" value={summary?.totalAllTime || 0} icon="🏦" color="var(--success)" subLabel={`${summary?.totalExpenses || 0} expenses`} delay={100} />
-                <StatCard
-                    label="Budget Used"
-                    value={summary?.monthlyBudget ? `${budgetPct.toFixed(0)}%` : '—'}
-                    icon="🎯"
-                    color={budgetPct >= 100 ? 'var(--danger)' : budgetPct >= 80 ? 'var(--warning)' : 'var(--success)'}
-                    subLabel={summary?.monthlyBudget ? `₹${summary.monthlyBudget.toLocaleString('en-IN')} limit` : 'No budget set'}
-                    delay={150}
-                />
-            </div>
+                    <GlassPane delay={0.3} className="md:col-span-2 relative">
+                        <div className="flex flex-col md:flex-row gap-6 justify-between h-full">
+                            <div className="flex flex-col z-10">
+                                <span className="text-xs uppercase tracking-[0.2em] text-slate-400 font-bold mb-3">Core Budget Integrity</span>
+                                <div className="text-5xl font-black flex items-baseline gap-2">
+                                    <span className={isDanger ? 'text-red-500' : 'text-white'}>{budgetPct.toFixed(1)}</span>
+                                    <span className="text-2xl text-slate-500">%</span>
+                                </div>
+                                <div className="mt-auto pt-4 text-sm font-medium text-slate-400">
+                                    Limit: <span className="text-white font-bold">₹{summary?.monthlyBudget?.toLocaleString('en-IN') || 'Unset'}</span>
+                                </div>
+                            </div>
 
-            {/* ── Charts Row ────────────────────────────────────────────────────── */}
-            <div className="grid-2 mb-6">
-                {/* Spending Trend + Rolling Average */}
-                <div className="card animate-in stagger-2">
-                    <div className="flex justify-between items-center mb-6">
-                        <div>
-                            <h3 style={{ fontSize: '1rem' }}>Spending Trend</h3>
-                            <p className="text-xs text-muted mt-1">Monthly totals + 3-month rolling average</p>
-                        </div>
-                        <span className="badge badge-primary">6M</span>
-                    </div>
-                    <ResponsiveContainer width="100%" height={220}>
-                        <AreaChart data={trends} aria-label="Monthly spending trend chart">
-                            <defs>
-                                <linearGradient id="gradBlue" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor="#7c3aed" stopOpacity={0} />
-                                </linearGradient>
-                                <linearGradient id="gradMA" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.15} />
-                                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-                            <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-                            <Tooltip content={<CustomTooltip />} />
-                            <Area
-                                type="monotone" dataKey="total" name="total"
-                                stroke="#7c3aed" strokeWidth={2.5}
-                                fill="url(#gradBlue)"
-                                dot={{ fill: '#7c3aed', r: 3 }} activeDot={{ r: 6 }}
-                            />
-                            <Area
-                                type="monotone" dataKey="ma3" name="ma3"
-                                stroke="#06b6d4" strokeWidth={1.5} strokeDasharray="5 3"
-                                fill="url(#gradMA)"
-                                dot={false} activeDot={{ r: 5 }}
-                            />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                    <div className="flex gap-4 mt-3" style={{ justifyContent: 'center' }}>
-                        <div className="flex items-center gap-2" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                            <span style={{ display: 'inline-block', width: 16, height: 3, background: '#7c3aed', borderRadius: 2 }} />Monthly Spend
-                        </div>
-                        <div className="flex items-center gap-2" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                            <span style={{ display: 'inline-block', width: 16, height: 2, background: '#06b6d4', borderRadius: 2, borderTop: '2px dashed #06b6d4' }} />3M Rolling Avg
-                        </div>
-                    </div>
-                </div>
-
-                {/* Category Breakdown Donut */}
-                <div className="card animate-in stagger-3">
-                    <div className="flex justify-between items-center mb-6">
-                        <div>
-                            <h3 style={{ fontSize: '1rem' }}>Category Breakdown</h3>
-                            <p className="text-xs text-muted mt-1">This month by category</p>
-                        </div>
-                        <span className="badge badge-primary">MTD</span>
-                    </div>
-                    {categories.length > 0 ? (
-                        <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center' }}>
-                            <ResponsiveContainer width="45%" height={180}>
-                                <PieChart>
-                                    <Pie
-                                        data={categories} dataKey="total" nameKey="category"
-                                        cx="50%" cy="50%" innerRadius={48} outerRadius={78} paddingAngle={3}
-                                        aria-label="Expense category distribution pie chart"
-                                    >
-                                        {categories.map((c, i) => (
-                                            <Cell key={i} fill={CATEGORY_COLORS[c.category] || '#94a3b8'} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip formatter={(v) => [`₹${v.toLocaleString('en-IN')}`, 'Spent']} />
-                                </PieChart>
-                            </ResponsiveContainer>
-                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                                {categories.map((c, i) => {
-                                    const total = categories.reduce((s, x) => s + x.total, 0);
-                                    const pct = total ? ((c.total / total) * 100).toFixed(0) : 0;
-                                    return (
-                                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                                            <span style={{ fontSize: '0.85rem' }}>{CATEGORY_EMOJI[c.category] || '📌'}</span>
-                                            <div style={{ flex: 1, minWidth: 0 }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', marginBottom: 3 }}>
-                                                    <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }} className="truncate">{c.category}</span>
-                                                    <span style={{ color: 'var(--text-muted)', flexShrink: 0, marginLeft: 4 }}>{pct}%</span>
-                                                </div>
-                                                <div className="progress-bar" style={{ height: 4 }}>
-                                                    <div className="progress-fill" style={{ width: `${pct}%`, background: CATEGORY_COLORS[c.category] || '#94a3b8' }} />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                            {/* Futuristic Progress HUD */}
+                            <div className="relative w-full md:w-1/2 flex items-center justify-center pb-4 md:pb-0">
+                                <svg viewBox="0 0 100 50" className="w-full h-full overflow-visible drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]">
+                                    <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#1e293b" strokeWidth="6" strokeLinecap="round" />
+                                    <motion.path
+                                        d="M 10 50 A 40 40 0 0 1 90 50"
+                                        fill="none"
+                                        stroke={isDanger ? '#ef4444' : '#0ea5e9'}
+                                        strokeWidth="6"
+                                        strokeLinecap="round"
+                                        initial={{ pathLength: 0 }}
+                                        animate={{ pathLength: Math.min(budgetPct / 100, 1) }}
+                                        transition={{ duration: 1.5, ease: "easeOut", delay: 0.5 }}
+                                    />
+                                    <text x="50" y="45" textAnchor="middle" fill="white" className="font-bold text-[12px] tracking-widest">
+                                        {isDanger ? 'CRITICAL' : 'STABLE'}
+                                    </text>
+                                </svg>
                             </div>
                         </div>
-                    ) : (
-                        <div className="empty-state" style={{ padding: 'var(--space-8)' }}>
-                            <div className="empty-state-icon">📊</div>
-                            <h3>No data this month</h3>
-                            <p>Add expenses to see your category breakdown</p>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* ── Bottom Row ────────────────────────────────────────────────────── */}
-            <div className="grid-2">
-                {/* Monthly Bar Chart */}
-                <div className="card animate-in stagger-4">
-                    <div className="flex justify-between items-center mb-6">
-                        <div>
-                            <h3 style={{ fontSize: '1rem' }}>Monthly Comparison</h3>
-                            <p className="text-xs text-muted mt-1">Total spending per month</p>
-                        </div>
-                    </div>
-                    <ResponsiveContainer width="100%" height={200} aria-label="Monthly spending bar chart">
-                        <BarChart data={trends} barSize={18}>
-                            <defs>
-                                <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="#7c3aed" />
-                                    <stop offset="100%" stopColor="#06b6d4" />
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-                            <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-                            <Tooltip content={<CustomTooltip />} />
-                            {summary?.monthlyBudget && (
-                                <ReferenceLine y={summary.monthlyBudget} stroke="var(--danger)" strokeDasharray="4 3" strokeWidth={1.5} label={{ value: 'Budget', fill: 'var(--danger)', fontSize: 10 }} />
-                            )}
-                            <Bar dataKey="total" name="total" fill="url(#barGrad)" radius={[5, 5, 0, 0]} />
-                        </BarChart>
-                    </ResponsiveContainer>
+                    </GlassPane>
                 </div>
 
-                {/* Recent Transactions */}
-                <div className="card animate-in">
-                    <div className="flex justify-between items-center mb-6">
-                        <div>
-                            <h3 style={{ fontSize: '1rem' }}>Recent Transactions</h3>
-                            <p className="text-xs text-muted mt-1">Your latest 5 expenses</p>
-                        </div>
-                        <button onClick={() => navigate('/expenses')} className="btn btn-ghost btn-sm" style={{ fontSize: '0.78rem' }}>
-                            View all →
-                        </button>
-                    </div>
-                    {summary?.recentExpenses?.length > 0 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                            {summary.recentExpenses.map((exp, i) => {
-                                const isAnomaly = anomalies.some(a => a._id === exp._id);
+                {/* ── Data Streams & Visualizations ── */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                    {/* Category Topography */}
+                    <GlassPane delay={0.4} colSpan={1} className="flex flex-col">
+                        <h3 className="text-xs uppercase tracking-[0.2em] text-[#0ea5e9] font-bold mb-6 flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 bg-[#0ea5e9] rounded-full" />
+                            Vector Breakdown
+                        </h3>
+                        <div className="flex flex-col gap-4 flex-1">
+                            {categories.map((c, i) => {
+                                const total = categories.reduce((s, x) => s + x.total, 0);
+                                const pct = total ? ((c.total / total) * 100) : 0;
+                                const color = CATEGORY_COLORS[c.category] || '#94a3b8';
+
                                 return (
-                                    <div
-                                        key={exp._id}
-                                        className="fade-in-item"
-                                        style={{
-                                            display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
-                                            padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
-                                            background: isAnomaly ? 'rgba(245,158,11,0.06)' : 'rgba(255,255,255,0.02)',
-                                            border: `1px solid ${isAnomaly ? 'rgba(245,158,11,0.25)' : 'var(--border)'}`,
-                                            animationDelay: `${i * 60}ms`,
-                                        }}
-                                    >
-                                        <div
-                                            className="cat-icon"
-                                            style={{ background: `${CATEGORY_COLORS[exp.category]}20`, color: CATEGORY_COLORS[exp.category] || '#94a3b8', flexShrink: 0 }}
-                                        >
-                                            {CATEGORY_EMOJI[exp.category] || '📌'}
-                                        </div>
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                            <div style={{ fontSize: '0.875rem', fontWeight: 500 }} className="truncate">{exp.title}</div>
-                                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                                {exp.category} · {new Date(exp.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                                    <div key={i} className="group cursor-default relative">
+                                        <div className="flex justify-between items-end mb-2 relative z-10">
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-lg bg-black/20 p-2 rounded-xl backdrop-blur-sm border border-white/5">{CATEGORY_EMOJI[c.category] || '📌'}</span>
+                                                <span className="font-bold text-slate-200 tracking-wide text-sm">{c.category}</span>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="font-black text-white">₹{c.total.toLocaleString()}</div>
+                                                <div className="text-[10px] text-slate-400 font-bold uppercase">{pct.toFixed(1)}%</div>
                                             </div>
                                         </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-                                            <div style={{ fontWeight: 700, color: 'var(--danger)', fontSize: '0.875rem' }}>
-                                                −₹{exp.amount.toLocaleString('en-IN')}
-                                            </div>
-                                            {isAnomaly && <span className="anomaly-badge">⚠ Unusual</span>}
+                                        {/* Sci-fi Bar */}
+                                        <div className="h-1.5 w-full bg-[#0f172a] rounded-full overflow-hidden relative border border-white/5">
+                                            <motion.div
+                                                initial={{ width: 0 }}
+                                                animate={{ width: `${pct}%` }}
+                                                transition={{ duration: 1, delay: 0.6 + (i * 0.1) }}
+                                                className="absolute top-0 left-0 h-full rounded-full"
+                                                style={{ backgroundColor: color, boxShadow: `0 0 10px ${color}` }}
+                                            />
                                         </div>
                                     </div>
                                 );
                             })}
+                            {categories.length === 0 && (
+                                <div className="text-center text-slate-500 text-sm py-10 uppercase tracking-widest font-bold border border-dashed border-slate-700 rounded-xl">No Vector Data</div>
+                            )}
                         </div>
-                    ) : (
-                        <div className="empty-state" style={{ padding: 'var(--space-8)' }}>
-                            <div className="empty-state-icon">🧾</div>
-                            <h3>No transactions yet</h3>
-                            <p>Add your first expense to get started</p>
-                            <button className="btn btn-primary btn-sm mt-4" onClick={() => navigate('/expenses')}>+ Add Expense</button>
+                    </GlassPane>
+
+                    {/* Transaction Data Stream */}
+                    <GlassPane delay={0.5} colSpan={2}>
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xs uppercase tracking-[0.2em] text-[#10b981] font-bold flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 bg-[#10b981] rounded-full" />
+                                Live Transaction Stream
+                            </h3>
+                            <button onClick={() => navigate('/expenses')} className="text-[10px] uppercase font-bold tracking-widest border border-slate-700 px-3 py-1.5 rounded-full hover:bg-slate-800 transition-colors text-white">
+                                Access Logs &rarr;
+                            </button>
                         </div>
-                    )}
+
+                        <div className="flex flex-col gap-3">
+                            {summary?.recentExpenses?.length > 0 ? summary.recentExpenses.map((exp, i) => (
+                                <motion.div
+                                    key={exp._id}
+                                    initial={{ x: 20, opacity: 0 }}
+                                    animate={{ x: 0, opacity: 1 }}
+                                    transition={{ duration: 0.5, delay: 0.8 + (i * 0.1) }}
+                                    className="flex justify-between items-center p-4 bg-gradient-to-r from-black/40 to-black/10 border border-slate-800/50 rounded-2xl hover:border-slate-600 transition-colors group relative overflow-hidden"
+                                >
+                                    {/* Scanline effect */}
+                                    <div className="absolute top-0 bottom-0 left-0 w-1 bg-gradient-to-b from-transparent via-white/20 to-transparent transform -translate-y-full group-hover:translate-y-full transition-transform duration-1000" />
+
+                                    <div className="flex items-center gap-4 relative z-10">
+                                        <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center text-xl shadow-inner border border-white/5 group-hover:bg-white/10 transition-colors">
+                                            {CATEGORY_EMOJI[exp.category] || '📌'}
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-white tracking-wide">{exp.title}</span>
+                                            <span className="text-[11px] font-mono text-slate-400 mt-1 uppercase">
+                                                [{exp.category}] // {new Date(exp.date).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="text-right flex flex-col items-end relative z-10">
+                                        <span className="font-black text-rose-400 text-lg flex items-center gap-1">
+                                            <span className="text-[10px] border border-rose-400/30 px-1 rounded text-rose-400/80 mr-1">OUT</span>
+                                            ₹{exp.amount.toLocaleString('en-IN')}
+                                        </span>
+                                    </div>
+                                </motion.div>
+                            )) : (
+                                <div className="h-40 flex items-center justify-center text-slate-500 font-mono text-sm border border-slate-800 rounded-2xl bg-black/20">
+                                    &gt; NO_DATA_DETECTED_IN_STREAM
+                                </div>
+                            )}
+                        </div>
+                    </GlassPane>
+
                 </div>
             </div>
         </div>
