@@ -212,7 +212,39 @@ const getRecurringAnalysis = async (req, res) => {
     });
 };
 
+
+// ── GET /api/analytics/heatmap ────────────────────────────────────────────────
+const getHeatmapData = async (req, res) => {
+    const userId = toOid(req.user._id);
+    const now = new Date();
+    const yearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+
+    const raw = await Expense.aggregate([
+        { $match: { userId, date: { $gte: yearAgo } } },
+        {
+            $group: {
+                _id: {
+                    year: { $year: '$date' },
+                    month: { $month: '$date' },
+                    day: { $dayOfMonth: '$date' },
+                },
+                total: { $sum: '$amount' },
+                count: { $sum: 1 },
+            }
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } },
+    ]);
+
+    const formatted = raw.map((d) => {
+        const dateStr = `${d._id.year}-${String(d._id.month).padStart(2, '0')}-${String(d._id.day).padStart(2, '0')}`;
+        return { date: dateStr, total: Math.round(d.total), count: d.count };
+    });
+
+    res.json({ success: true, data: formatted });
+};
+
 module.exports = {
     getSummary, getMonthlyTrends, getCategoryAnalytics,
     getDailySpending, getPaymentMethodBreakdown, getRecurringAnalysis,
+    getHeatmapData,
 };

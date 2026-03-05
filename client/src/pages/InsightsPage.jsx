@@ -1,56 +1,214 @@
-import { useState, useEffect } from 'react';
-import { insightsAPI, analyticsAPI } from '../services/api';
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { insightsAPI, analyticsAPI, expenseAPI } from '../services/api';
+import SpendingHeatmap from '../components/SpendingHeatmap';
 import toast from 'react-hot-toast';
+// Note: analyticsAPI.getHeatmap() is the efficient dedicated heatmap endpoint
 
-// Simple markdown renderer (no library needed)
-function MarkdownContent({ text }) {
-    const html = text
-        .replace(/^### (.*$)/gm, '<h3>$1</h3>')
-        .replace(/^## (.*$)/gm, '<h2>$1</h2>')
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        .replace(/\n\n/g, '</p><p>')
-        .replace(/^- (.*$)/gm, '<li>$1</li>');
+const CATEGORY_EMOJI = { Food: '🍔', Transport: '🚗', Shopping: '🛍️', Bills: '⚡', Health: '💊', Education: '📚', Entertainment: '🎮', Other: '📌' };
+const CATEGORY_COLORS = { Food: '#fbbf24', Transport: '#60a5fa', Shopping: '#a78bfa', Bills: '#f87171', Health: '#34d399', Education: '#fb923c', Entertainment: '#f472b6', Other: '#94a3b8' };
+
+// ── Streaming Markdown Renderer ──────────────────────────────────────────────
+function StreamingText({ text, speed = 8 }) {
+    const [displayed, setDisplayed] = useState('');
+    const iRef = useRef(0);
+
+    useEffect(() => {
+        setDisplayed('');
+        iRef.current = 0;
+        if (!text) return;
+        const interval = setInterval(() => {
+            iRef.current += speed;
+            setDisplayed(text.slice(0, iRef.current));
+            if (iRef.current >= text.length) clearInterval(interval);
+        }, 16);
+        return () => clearInterval(interval);
+    }, [text, speed]);
+
+    const html = displayed
+        .replace(/^### (.*$)/gm, '<h3 style="color:#0ea5e9;font-size:0.95rem;font-weight:800;margin:16px 0 6px;letter-spacing:0.05em">$1</h3>')
+        .replace(/^## (.*$)/gm, '<h2 style="color:#e2e8f0;font-size:1.05rem;font-weight:800;margin:18px 0 8px">$1</h2>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#e2e8f0">$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em style="color:#94a3b8">$1</em>')
+        .replace(/^- (.*$)/gm, '<li style="margin:4px 0;padding-left:4px">$1</li>')
+        .replace(/\n\n/g, '</p><p style="margin:8px 0">')
+        .replace(/₹/g, '<span style="color:#10b981">₹</span>');
+
     return (
         <div
-            style={{ lineHeight: 1.8, color: 'var(--text-secondary)' }}
-            dangerouslySetInnerHTML={{
-                __html: `<p>${html}</p>`.replace(/<\/p><p><h/g, '<h').replace(/<\/h([1-3])><\/p>/g, '</h$1>'),
-            }}
+            style={{ lineHeight: 1.8, color: '#94a3b8', fontSize: '0.875rem' }}
+            dangerouslySetInnerHTML={{ __html: `<p style="margin:0">${html}</p>` }}
         />
     );
 }
 
-function SkeletonBlock({ width = '100%', height = 20 }) {
-    return <div className="skeleton" style={{ width, height, borderRadius: 6 }} />;
+// ── Anomaly Card ─────────────────────────────────────────────────────────────
+function AnomalyCard({ anomaly, index }) {
+    const color = CATEGORY_COLORS[anomaly.category] || '#94a3b8';
+    return (
+        <motion.div
+            initial={{ x: 30, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.1 + index * 0.08 }}
+            style={{
+                padding: '14px 16px',
+                borderRadius: 14,
+                background: 'rgba(239,68,68,0.06)',
+                border: '1px solid rgba(239,68,68,0.15)',
+                display: 'flex', alignItems: 'center', gap: 14,
+            }}
+        >
+            <div style={{
+                width: 44, height: 44, borderRadius: '50%',
+                background: `${color}15`,
+                border: `2px solid ${color}30`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '1.3rem', flexShrink: 0,
+            }}>
+                {CATEGORY_EMOJI[anomaly.category] || '📌'}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, color: '#e2e8f0', fontSize: '0.875rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {anomaly.title}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: 2 }}>
+                    {anomaly.category} · {new Date(anomaly.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: '#f87171', marginTop: 2 }}>
+                    {anomaly.zScore}σ above category average (avg ₹{(anomaly.categoryMean || 0).toLocaleString('en-IN')})
+                </div>
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontWeight: 800, color: '#f87171', fontSize: '1rem' }}>
+                    ₹{anomaly.amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                </div>
+                <div style={{ fontSize: '0.6rem', color: '#ef4444', fontWeight: 700, letterSpacing: '0.05em', marginTop: 2 }}>ANOMALY</div>
+            </div>
+        </motion.div>
+    );
 }
 
+// ── Ring Gauge (reusable) ────────────────────────────────────────────────────
+function RingGauge({ percent, color, size = 80, stroke = 7, label }) {
+    const r = (size - stroke) / 2;
+    const circ = 2 * Math.PI * r;
+    const dash = Math.min((percent / 100) * circ, circ);
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+            <div style={{ position: 'relative', width: size, height: size }}>
+                <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+                    <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={stroke} />
+                    <motion.circle
+                        cx={size / 2} cy={size / 2} r={r}
+                        fill="none" stroke={color} strokeWidth={stroke}
+                        strokeLinecap="round"
+                        strokeDasharray={circ}
+                        initial={{ strokeDashoffset: circ }}
+                        animate={{ strokeDashoffset: circ - dash }}
+                        transition={{ duration: 1.4, ease: 'easeOut', delay: 0.3 }}
+                        style={{ filter: `drop-shadow(0 0 5px ${color}80)` }}
+                    />
+                </svg>
+                <div style={{
+                    position: 'absolute', inset: 0, display: 'flex',
+                    alignItems: 'center', justifyContent: 'center',
+                    flexDirection: 'column',
+                }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 900, color }}>{Math.round(percent)}%</div>
+                </div>
+            </div>
+            {label && <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', textAlign: 'center' }}>{label}</div>}
+        </div>
+    );
+}
+
+// ── GlassPane ────────────────────────────────────────────────────────────────
+function GlassPane({ children, delay = 0, accentColor, className }) {
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay, type: 'spring', bounce: 0.3 }}
+            whileHover={{ y: -3, transition: { duration: 0.2 } }}
+            style={{
+                background: 'rgba(15,23,42,0.6)',
+                border: `1px solid ${accentColor ? accentColor + '20' : 'rgba(255,255,255,0.06)'}`,
+                borderRadius: 20,
+                padding: 24,
+                backdropFilter: 'blur(20px)',
+                boxShadow: accentColor
+                    ? `0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px ${accentColor}10`
+                    : '0 8px 32px rgba(0,0,0,0.4)',
+                position: 'relative',
+                overflow: 'hidden',
+            }}
+        >
+            {accentColor && (
+                <div style={{
+                    position: 'absolute', top: 0, left: 0, right: 0, height: 2,
+                    background: `linear-gradient(90deg, transparent, ${accentColor}, transparent)`,
+                }} />
+            )}
+            {children}
+        </motion.div>
+    );
+}
+
+// ── Finance Tips ─────────────────────────────────────────────────────────────
+const TIPS = [
+    { icon: '⚡', rule: '50/30/20', desc: '50% needs · 30% wants · 20% savings', color: '#fbbf24' },
+    { icon: '🎯', rule: 'Pay Yourself First', desc: 'Save before spending, not after', color: '#10b981' },
+    { icon: '🛡️', rule: 'Emergency Fund', desc: '3–6 months of expenses in liquid savings', color: '#0ea5e9' },
+    { icon: '🔁', rule: 'Automate Savings', desc: 'Set up auto-transfers on salary day', color: '#a78bfa' },
+    { icon: '📉', rule: 'Track Daily', desc: 'Log expenses same-day for accuracy', color: '#f472b6' },
+];
+
+// ── Main Component ────────────────────────────────────────────────────────────
 export default function InsightsPage() {
     const [insights, setInsights] = useState('');
     const [anomalies, setAnomalies] = useState([]);
     const [recurring, setRecurring] = useState(null);
+    const [heatmapData, setHeatmapData] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [recurringLoading, setRecurringLoading] = useState(true);
+    const [dataLoading, setDataLoading] = useState(true);
     const [autoTitle, setAutoTitle] = useState('');
     const [autoCat, setAutoCat] = useState('');
-    const [autocatLoading, setAutoCatLoading] = useState(false);
+    const [autocatLoading, setAutocatLoading] = useState(false);
+    const catDebounceRef = useRef(null);
 
     useEffect(() => {
-        const load = async () => {
-            setRecurringLoading(true);
+        const init = async () => {
+            setDataLoading(true);
             try {
-                const [r] = await Promise.all([
+                const [r, a, h] = await Promise.all([
                     analyticsAPI.getRecurring(),
+                    expenseAPI.getAnomalies(),
+                    analyticsAPI.getHeatmap(),
                 ]);
                 setRecurring(r.data);
-            } catch {
-                // silent
-            } finally {
-                setRecurringLoading(false);
-            }
+                setAnomalies(a.data || []);
+                setHeatmapData(h.data || []);
+            } catch { /* silent */ }
+            finally { setDataLoading(false); }
         };
-        load();
+        init();
     }, []);
+
+    // Live AI categorization with debounce
+    const handleAutoTitleChange = (val) => {
+        setAutoTitle(val);
+        setAutoCat('');
+        if (catDebounceRef.current) clearTimeout(catDebounceRef.current);
+        if (val.trim().length < 2) return;
+        catDebounceRef.current = setTimeout(async () => {
+            setAutocatLoading(true);
+            try {
+                const res = await insightsAPI.categorize(val.trim());
+                setAutoCat(res.data.category);
+            } catch { /* silent */ }
+            finally { setAutocatLoading(false); }
+        }, 500);
+    };
 
     const generateInsights = async () => {
         setLoading(true);
@@ -65,198 +223,289 @@ export default function InsightsPage() {
         }
     };
 
-    const handleCategorize = async () => {
-        if (!autoTitle.trim()) return toast.error('Enter an expense title first');
-        setAutoCatLoading(true);
-        setAutoCat('');
-        try {
-            const result = await insightsAPI.categorize(autoTitle.trim());
-            setAutoCat(result.data.category);
-            toast.success(`AI suggests: ${result.data.category}`);
-        } catch {
-            toast.error('Auto-categorize failed');
-        } finally {
-            setAutoCatLoading(false);
-        }
-    };
-
-    const CATEGORY_EMOJI = { Food: '🍔', Transport: '🚗', Shopping: '🛍️', Bills: '⚡', Health: '💊', Education: '📚', Entertainment: '🎮', Other: '📌' };
-
     return (
-        <div>
+        <div style={{ color: '#e2e8f0', minHeight: '100%' }}>
+            {/* Override page background colors */}
+            <style>{`
+                .page-content { background: transparent !important; }
+                body { background-color: #020617 !important; }
+            `}</style>
+
             {/* Header */}
-            <div className="mb-6">
-                <h1 style={{ fontSize: '1.75rem' }}>🤖 AI Insights</h1>
-                <p className="text-secondary text-sm mt-2">Powered by Google Gemini 2.0 Flash — your personal finance AI</p>
-            </div>
-
-            {/* Main Grid */}
-            <div className="grid-2 mb-6" style={{ alignItems: 'start' }}>
-                {/* AI Insights Panel */}
-                <div className="card animate-in" style={{ minHeight: 400 }}>
-                    <div className="flex justify-between items-center mb-5">
-                        <div>
-                            <h3 style={{ fontSize: '1rem' }}>Personalized Financial Insights</h3>
-                            <p className="text-xs text-muted mt-1">AI analyzes your actual spending + budget data</p>
-                        </div>
-                        <div style={{
-                            padding: '4px 10px', borderRadius: 99, fontSize: '0.7rem', fontWeight: 700,
-                            background: 'linear-gradient(135deg, #7c3aed22, #06b6d422)',
-                            border: '1px solid rgba(124,58,237,0.3)',
-                            color: 'var(--primary-light)',
-                        }}>Gemini AI</div>
+            <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{ marginBottom: 28 }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+                    <div style={{
+                        width: 36, height: 36, borderRadius: 10,
+                        background: 'linear-gradient(135deg, rgba(124,58,237,0.3), rgba(14,165,233,0.2))',
+                        border: '1px solid rgba(124,58,237,0.3)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '1.3rem',
+                    }}>🤖</div>
+                    <div>
+                        <h1 style={{ fontSize: '1.6rem', fontWeight: 900, margin: 0, letterSpacing: '-0.02em' }}>AI Intelligence Hub</h1>
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Powered by Google Gemini 2.0 Flash</p>
                     </div>
-
-                    {!insights && !loading && (
-                        <div style={{ textAlign: 'center', padding: 'var(--space-10) 0' }}>
-                            <div style={{ fontSize: '3rem', marginBottom: 'var(--space-4)' }}>🧠</div>
-                            <h3 style={{ fontSize: '1rem', marginBottom: 'var(--space-2)' }}>Get Your AI Report</h3>
-                            <p className="text-muted text-sm" style={{ marginBottom: 'var(--space-6)', maxWidth: 300, margin: '0 auto var(--space-6)' }}>
-                                Click below to generate a personalized analysis of your spending patterns, budget health, and savings opportunities.
-                            </p>
-                            <button onClick={generateInsights} className="btn btn-primary" style={{ gap: 8 }}>
-                                ✨ Generate AI Insights
-                            </button>
-                            <p className="text-xs text-muted" style={{ marginTop: 'var(--space-3)' }}>Requires VITE_GEMINI_API_KEY to be configured</p>
-                        </div>
-                    )}
-
-                    {loading && (
-                        <div style={{ padding: 'var(--space-8) 0' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-6)' }}>
-                                <div className="spinner" style={{ width: 24, height: 24, borderWidth: 3 }} />
-                                <span className="text-secondary text-sm">Gemini AI is analyzing your finances...</span>
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                                <SkeletonBlock height={16} width="80%" />
-                                <SkeletonBlock height={14} width="60%" />
-                                <SkeletonBlock height={14} width="70%" />
-                                <SkeletonBlock height={16} width="50%" />
-                                <SkeletonBlock height={14} width="65%" />
-                                <SkeletonBlock height={14} width="75%" />
-                            </div>
-                        </div>
-                    )}
-
-                    {insights && !loading && (
-                        <>
-                            <div style={{
-                                background: 'rgba(124,58,237,0.06)',
-                                border: '1px solid rgba(124,58,237,0.2)',
-                                borderRadius: 'var(--radius-md)',
-                                padding: 'var(--space-5)',
-                                marginBottom: 'var(--space-5)',
-                            }}>
-                                <MarkdownContent text={insights} />
-                            </div>
-                            <button onClick={generateInsights} className="btn btn-ghost btn-sm">
-                                🔄 Refresh Analysis
-                            </button>
-                        </>
-                    )}
+                    <div style={{ marginLeft: 'auto', fontSize: '0.65rem', fontWeight: 700, background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.3)', color: '#a78bfa', padding: '4px 12px', borderRadius: 99, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                        AI Powered
+                    </div>
                 </div>
+            </motion.div>
 
-                {/* Sidebar: Auto-categorize + Tips */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-                    {/* AI Auto-Categorize */}
-                    <div className="card animate-in stagger-1">
-                        <h3 style={{ fontSize: '0.95rem', marginBottom: 'var(--space-4)' }}>🏷️ AI Auto-Categorize</h3>
-                        <p className="text-xs text-muted mb-3">Type an expense title and let AI suggest the right category</p>
-                        <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-3)' }}>
-                            <input
-                                className="form-input"
-                                style={{ flexGrow: 1 }}
-                                value={autoTitle}
-                                onChange={(e) => setAutoTitle(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleCategorize()}
-                                placeholder="e.g. Uber ride, Netflix, Gym"
-                                maxLength={100}
-                            />
-                            <button onClick={handleCategorize} disabled={autocatLoading} className="btn btn-primary btn-sm">
-                                {autocatLoading ? <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} /> : '✨'}
-                            </button>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 18 }}>
+
+                {/* ── AI Insights Panel ─────────────────────────────────────────── */}
+                <GlassPane delay={0.05} accentColor="#7c3aed">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+                        <div>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 4 }}>Personalized Analysis</div>
+                            <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#e2e8f0' }}>AI Financial Insights</div>
                         </div>
-                        {autoCat && (
-                            <div className="alert alert-info" style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                                <span style={{ fontSize: '1.4rem' }}>{CATEGORY_EMOJI[autoCat] || '📌'}</span>
-                                <div>
-                                    <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{autoCat}</div>
-                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>AI suggested category</div>
-                                </div>
-                            </div>
-                        )}
+                        <button
+                            onClick={generateInsights}
+                            disabled={loading}
+                            style={{
+                                background: loading ? 'rgba(124,58,237,0.1)' : 'rgba(124,58,237,0.2)',
+                                border: '1px solid rgba(124,58,237,0.4)',
+                                borderRadius: 10, padding: '8px 14px',
+                                color: '#a78bfa', fontWeight: 700, fontSize: '0.8rem',
+                                cursor: loading ? 'wait' : 'pointer',
+                                display: 'flex', alignItems: 'center', gap: 6,
+                                transition: 'all 0.2s',
+                            }}
+                        >
+                            {loading ? (
+                                <>
+                                    <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(124,58,237,0.3)', borderTopColor: '#a78bfa', animation: 'spin 0.7s linear infinite' }} />
+                                    Analyzing...
+                                </>
+                            ) : insights ? '🔄 Refresh' : '✨ Generate'}
+                        </button>
                     </div>
 
-                    {/* Recurring vs Discretionary */}
-                    <div className="card animate-in stagger-2">
-                        <h3 style={{ fontSize: '0.95rem', marginBottom: 'var(--space-4)' }}>🔄 Fixed vs Variable Spending</h3>
-                        {recurringLoading ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                                <SkeletonBlock height={60} />
-                                <SkeletonBlock height={40} width="70%" />
+                    {/* Empty state */}
+                    {!insights && !loading && (
+                        <motion.div style={{ textAlign: 'center', padding: '32px 0' }}>
+                            <div style={{ fontSize: '3.5rem', marginBottom: 12 }}>🧠</div>
+                            <div style={{ fontWeight: 700, color: '#e2e8f0', marginBottom: 8 }}>Ready for Analysis</div>
+                            <div style={{ fontSize: '0.8rem', color: '#475569', marginBottom: 20, maxWidth: 280, margin: '0 auto 20px', lineHeight: 1.6 }}>
+                                Gemini AI will analyze your spending, budgets, and patterns to give you personalized insights.
                             </div>
-                        ) : recurring ? (
-                            <>
-                                <div className="flex gap-3 mb-4">
-                                    <div className="stat-card" style={{ padding: 'var(--space-4)', flex: 1, textAlign: 'center' }}>
-                                        <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--primary-light)' }}>
-                                            ₹{recurring.totalRecurring.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-                                        </div>
-                                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>Recurring (Fixed)</div>
-                                    </div>
-                                    <div className="stat-card" style={{ padding: 'var(--space-4)', flex: 1, textAlign: 'center' }}>
-                                        <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--success)' }}>
-                                            ₹{recurring.totalDiscretionary.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-                                        </div>
-                                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>Discretionary</div>
-                                    </div>
-                                </div>
-                                <div className="progress-bar mb-2">
-                                    <div className="progress-fill" style={{ width: `${recurring.recurringPercent}%` }} />
-                                </div>
-                                <p className="text-xs text-muted">
-                                    {recurring.recurringPercent}% of your spending is fixed/recurring this month
-                                </p>
-                                {recurring.recurring.length > 0 && (
-                                    <div style={{ marginTop: 'var(--space-3)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                                        {recurring.recurring.slice(0, 4).map((r, i) => (
-                                            <div key={i} className="flex justify-between text-xs" style={{ color: 'var(--text-secondary)' }}>
-                                                <span>{CATEGORY_EMOJI[r._id] || '📌'} {r._id}</span>
-                                                <span style={{ fontWeight: 600 }}>₹{r.total.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </>
-                        ) : (
-                            <div className="empty-state" style={{ padding: 'var(--space-6)' }}>
-                                <div className="empty-state-icon" style={{ fontSize: '1.5rem' }}>🔄</div>
-                                <p className="text-sm">No recurring expenses this month</p>
-                            </div>
-                        )}
-                    </div>
+                            <motion.button
+                                onClick={generateInsights}
+                                whileHover={{ scale: 1.04 }}
+                                whileTap={{ scale: 0.96 }}
+                                style={{
+                                    background: 'linear-gradient(135deg, #7c3aed, #6d28d9)',
+                                    border: 'none', borderRadius: 12,
+                                    padding: '12px 24px', color: '#fff',
+                                    fontWeight: 800, fontSize: '0.9rem',
+                                    cursor: 'pointer', boxShadow: '0 4px 20px rgba(124,58,237,0.4)',
+                                }}
+                            >
+                                ✨ Generate AI Report
+                            </motion.button>
+                        </motion.div>
+                    )}
 
-                    {/* Finance Tips */}
-                    <div className="card animate-in stagger-3">
-                        <h3 style={{ fontSize: '0.95rem', marginBottom: 'var(--space-4)' }}>💡 Smart Finance Rules</h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                            {[
-                                { rule: '50/30/20', desc: '50% needs, 30% wants, 20% savings' },
-                                { rule: 'Track Daily', desc: 'Log expenses the same day for accuracy' },
-                                { rule: 'Budget Buffer', desc: 'Set limits at 80% of actual budget' },
-                                { rule: 'Recurring First', desc: 'Plan discretionary spend after fixed costs' },
-                            ].map(({ rule, desc }) => (
-                                <div key={rule} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-3)', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)' }}>
-                                    <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-sm)', background: 'rgba(124,58,237,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 800, color: 'var(--primary-light)', flexShrink: 0 }}>
-                                        {rule}
-                                    </div>
-                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{desc}</span>
-                                </div>
+                    {/* Loading skeleton */}
+                    {loading && (
+                        <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                                <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid rgba(124,58,237,0.3)', borderTopColor: '#a78bfa', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+                                <span style={{ fontSize: '0.82rem', color: '#64748b' }}>Gemini is analyzing your finances...</span>
+                            </div>
+                            {[80, 60, 75, 50, 70, 65].map((w, i) => (
+                                <div key={i} style={{ height: 12, borderRadius: 6, background: 'rgba(255,255,255,0.05)', marginBottom: 10, width: `${w}%`, animation: 'pulse 1.5s ease-in-out infinite', animationDelay: `${i * 0.1}s` }} />
                             ))}
                         </div>
+                    )}
+
+                    {/* Insights content */}
+                    {insights && !loading && (
+                        <div style={{
+                            background: 'rgba(124,58,237,0.04)',
+                            border: '1px solid rgba(124,58,237,0.12)',
+                            borderRadius: 14, padding: 18, maxHeight: 380, overflowY: 'auto',
+                        }}>
+                            <StreamingText text={insights} speed={12} />
+                        </div>
+                    )}
+                </GlassPane>
+
+                {/* ── Anomaly Detector ──────────────────────────────────────────── */}
+                <GlassPane delay={0.1} accentColor="#ef4444">
+                    <div style={{ marginBottom: 16 }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 4 }}>Statistical Outlier Detection</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#e2e8f0' }}>🔍 Anomalies</div>
+                            {anomalies.length > 0 && (
+                                <div style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 99, padding: '2px 8px', fontSize: '0.65rem', fontWeight: 800, color: '#f87171' }}>
+                                    {anomalies.length} found
+                                </div>
+                            )}
+                        </div>
                     </div>
-                </div>
+
+                    {dataLoading ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#475569', fontSize: '0.8rem' }}>
+                            <div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid rgba(239,68,68,0.2)', borderTopColor: '#f87171', animation: 'spin 0.7s linear infinite' }} />
+                            Scanning transactions...
+                        </div>
+                    ) : anomalies.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                            <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>✅</div>
+                            <div style={{ fontWeight: 700, color: '#10b981', marginBottom: 4 }}>All Clear!</div>
+                            <div style={{ fontSize: '0.8rem', color: '#475569' }}>No spending anomalies detected this month</div>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 340, overflowY: 'auto' }}>
+                            {anomalies.map((a, i) => (
+                                <AnomalyCard key={a._id} anomaly={a} index={i} />
+                            ))}
+                        </div>
+                    )}
+                </GlassPane>
             </div>
+
+            {/* ── Second Row: Auto-categorize + Recurring + Tips ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 18, marginBottom: 18 }}>
+
+                {/* AI Auto Categorize */}
+                <GlassPane delay={0.15} accentColor="#10b981">
+                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#34d399', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 12 }}>Live AI Classifier</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 14 }}>🏷️ Auto-Categorize</div>
+                    <div style={{ position: 'relative', marginBottom: 10 }}>
+                        <input
+                            value={autoTitle}
+                            onChange={e => handleAutoTitleChange(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleAutoTitleChange(autoTitle)}
+                            placeholder="Type expense title..."
+                            maxLength={100}
+                            style={{
+                                width: '100%', background: 'rgba(255,255,255,0.04)',
+                                border: '1px solid rgba(16,185,129,0.2)',
+                                borderRadius: 10, padding: '10px 36px 10px 12px',
+                                color: '#e2e8f0', fontSize: '0.85rem',
+                                outline: 'none', boxSizing: 'border-box',
+                            }}
+                        />
+                        <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: '0.9rem' }}>
+                            {autocatLoading
+                                ? <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(16,185,129,0.2)', borderTopColor: '#10b981', animation: 'spin 0.7s linear infinite' }} />
+                                : autoCat ? (CATEGORY_EMOJI[autoCat] || '✨') : '🔍'}
+                        </div>
+                    </div>
+
+                    <AnimatePresence>
+                        {autoCat && !autocatLoading && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                style={{ overflow: 'hidden' }}
+                            >
+                                <div style={{
+                                    padding: '12px 14px', borderRadius: 12,
+                                    background: `${CATEGORY_COLORS[autoCat]}12`,
+                                    border: `1px solid ${CATEGORY_COLORS[autoCat]}25`,
+                                    display: 'flex', alignItems: 'center', gap: 12,
+                                }}>
+                                    <span style={{ fontSize: '1.8rem' }}>{CATEGORY_EMOJI[autoCat] || '📌'}</span>
+                                    <div>
+                                        <div style={{ fontWeight: 800, color: CATEGORY_COLORS[autoCat], fontSize: '1rem' }}>{autoCat}</div>
+                                        <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>AI suggested category</div>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </GlassPane>
+
+                {/* Recurring vs Discretionary */}
+                <GlassPane delay={0.2} accentColor="#0ea5e9">
+                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 12 }}>Burn Analysis</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 14 }}>🔄 Fixed vs Variable</div>
+                    {dataLoading ? (
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: 24, padding: '16px 0' }}>
+                            {[0, 1].map(i => <div key={i} style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', animation: 'pulse 1.5s ease-in-out infinite', animationDelay: `${i * 0.2}s` }} />)}
+                        </div>
+                    ) : recurring ? (
+                        <div>
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginBottom: 16 }}>
+                                <RingGauge percent={recurring.recurringPercent} color="#0ea5e9" label="Fixed" />
+                                <RingGauge percent={100 - recurring.recurringPercent} color="#10b981" label="Variable" />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+                                    <span style={{ color: '#64748b', fontWeight: 600 }}>Fixed (Recurring)</span>
+                                    <span style={{ color: '#0ea5e9', fontWeight: 800 }}>₹{recurring.totalRecurring.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+                                    <span style={{ color: '#64748b', fontWeight: 600 }}>Variable</span>
+                                    <span style={{ color: '#10b981', fontWeight: 800 }}>₹{recurring.totalDiscretionary.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div style={{ textAlign: 'center', color: '#475569', fontSize: '0.8rem', padding: '20px 0' }}>No recurring expenses this month</div>
+                    )}
+                </GlassPane>
+
+                {/* Finance Tips */}
+                <GlassPane delay={0.25} accentColor="#fbbf24">
+                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 12 }}>Wealth Principles</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 14 }}>💡 Smart Rules</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {TIPS.map(({ icon, rule, desc, color }) => (
+                            <motion.div
+                                key={rule}
+                                whileHover={{ x: 4, transition: { duration: 0.15 } }}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 10,
+                                    padding: '8px 10px',
+                                    background: 'rgba(255,255,255,0.02)',
+                                    borderRadius: 10, border: '1px solid rgba(255,255,255,0.04)',
+                                    cursor: 'default',
+                                }}
+                            >
+                                <div style={{
+                                    width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                                    background: `${color}15`,
+                                    border: `1px solid ${color}25`,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontSize: '0.9rem',
+                                }}>{icon}</div>
+                                <div>
+                                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#e2e8f0' }}>{rule}</div>
+                                    <div style={{ fontSize: '0.68rem', color: '#64748b', marginTop: 1 }}>{desc}</div>
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                </GlassPane>
+            </div>
+
+            {/* ── Spending Heatmap ─────────────────────────────────────────────── */}
+            <GlassPane delay={0.3} accentColor="#10b981">
+                <div style={{ marginBottom: 18 }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#34d399', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 4 }}>Past 52 Weeks</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#e2e8f0' }}>📅 Spending Activity Heatmap</div>
+                </div>
+                {dataLoading ? (
+                    <div style={{ color: '#475569', fontSize: '0.8rem', padding: '16px 0' }}>Loading heatmap data...</div>
+                ) : (
+                    <SpendingHeatmap dailyData={heatmapData} />
+                )}
+            </GlassPane>
+
+            <style>{`
+                @keyframes spin { to { transform: rotate(360deg); } }
+                @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+            `}</style>
         </div>
     );
 }

@@ -2,18 +2,23 @@ import { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
+import QuickAddModal from './QuickAddModal';
+import { AnimatePresence, motion } from 'framer-motion';
 
 const NAV = [
     { to: '/dashboard', icon: '⚡', label: 'Dashboard' },
     { to: '/expenses', icon: '💳', label: 'Expenses' },
     { to: '/analytics', icon: '📊', label: 'Analytics' },
     { to: '/budgets', icon: '🎯', label: 'Budgets' },
-    { to: '/insights', icon: '🤖', label: 'AI Insights', badge: 'NEW' },
+    { to: '/insights', icon: '🤖', label: 'AI Insights' },
+    { to: '/subscriptions', icon: '♾️', label: 'Subscriptions', badge: 'NEW' },
 ];
 
 export default function Layout({ children }) {
     const { user, dbUser, signOut } = useAuth();
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [quickAddOpen, setQuickAddOpen] = useState(false);
+    const [quickAddData, setQuickAddData] = useState(null);
     const navigate = useNavigate();
     const location = useLocation();
     const sidebarRef = useRef(null);
@@ -21,11 +26,26 @@ export default function Layout({ children }) {
     // Close sidebar on route change (mobile nav)
     useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
 
-    // Escape key + focus trap for sidebar
     useEffect(() => {
-        const handler = (e) => { if (e.key === 'Escape') setSidebarOpen(false); };
+        const handler = (e) => {
+            if (e.key === 'Escape') setSidebarOpen(false);
+            // Alt+N = Quick Add
+            if (e.altKey && e.key.toLowerCase() === 'n') {
+                e.preventDefault();
+                setQuickAddData(null);
+                setQuickAddOpen(true);
+            }
+        };
+        const omniHandler = (e) => {
+            setQuickAddData(e.detail);
+            setQuickAddOpen(true);
+        };
         document.addEventListener('keydown', handler);
-        return () => document.removeEventListener('keydown', handler);
+        window.addEventListener('open-quick-add', omniHandler);
+        return () => {
+            document.removeEventListener('keydown', handler);
+            window.removeEventListener('open-quick-add', omniHandler);
+        };
     }, []);
 
     // Prevent body scroll when sidebar is open on mobile
@@ -209,6 +229,34 @@ export default function Layout({ children }) {
                     {children}
                 </div>
             </main>
+
+            {/* Global Quick Add FAB (visible on all pages except Dashboard which has its own) */}
+            <AnimatePresence>
+                {quickAddOpen && (
+                    <QuickAddModal
+                        onClose={() => setQuickAddOpen(false)}
+                        initialData={quickAddData}
+                    />
+                )}
+            </AnimatePresence>
+            <motion.button
+                onClick={() => setQuickAddOpen(true)}
+                whileHover={{ scale: 1.12, boxShadow: '0 0 30px rgba(16,185,129,0.6)' }}
+                whileTap={{ scale: 0.9 }}
+                title="Quick Add Expense (Alt+N)"
+                style={{
+                    position: 'fixed', bottom: 28, right: 28, zIndex: 500,
+                    width: 52, height: 52, borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #10b981, #0ea5e9)',
+                    boxShadow: '0 4px 20px rgba(16,185,129,0.4), 0 0 0 1px rgba(16,185,129,0.2)',
+                    border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '1.5rem', color: '#fff', fontWeight: 300,
+                    lineHeight: 1,
+                }}
+            >
+                +
+            </motion.button>
         </div>
     );
 }

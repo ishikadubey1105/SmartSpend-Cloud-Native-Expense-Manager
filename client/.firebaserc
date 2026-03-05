@@ -1,15 +1,5 @@
 {
   "projects": {
-    "default": "smartspend-110530",
-    "smartspend-110530": "smartspend-110530"
-  },
-  "targets": {
-    "smartspend-110530": {
-      "hosting": {
-        "smartspend-110530": [
-          "smartspend-110530"
-        ]
-      }
-    }
+    "default": "smartspend-110506"
   }
 }

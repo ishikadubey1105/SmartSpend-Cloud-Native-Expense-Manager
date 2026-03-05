@@ -152,4 +152,103 @@ Respond with ONLY the exact category name from the list, nothing else.`;
     res.json({ success: true, data: { category } });
 };
 
-module.exports = { getInsights, categorizeExpense };
+// ── POST /api/insights/scan-receipt ──────────────────────────────────────────
+const scanReceipt = (req, res) => {
+    return new Promise((resolve) => {
+        const { imageFile, mimeType } = req.body; // Expect base64 strings
+        if (!imageFile) return res.status(400).json({ success: false, message: 'Image data is required' });
+
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) return res.status(500).json({ success: false, message: 'API key missing' });
+
+        // Strip data prefix if passed
+        const base64Data = imageFile.replace(/^data:image\/\w+;base64,/, '');
+        const mime = mimeType || 'image/jpeg';
+
+        const VALID = ['Food', 'Transport', 'Shopping', 'Bills', 'Health', 'Education', 'Entertainment', 'Other'];
+
+        const prompt = `Analyze this checkout receipt. Extract the following 4 pieces of information exactly as JSON keys:
+        - "title" (the name of the store or merchant, e.g. "Starbucks")
+        - "amount" (the final total amount paid as a clean number, e.g. 15.50)
+        - "date" (the date of the transaction in YYYY-MM-DD format if visible, else null)
+        - "category" (pick the most relevant category strictly from this array: [${VALID.map(v => `"${v}"`).join(', ')}]. Default to "Other" if unmatched.)
+        
+        Return ONLY valid raw JSON with those 4 keys. Do NOT include markdown code blocks \`\`\`json.`;
+
+        const body = JSON.stringify({
+            contents: [{
+                parts: [
+                    { text: prompt },
+                    { inlineData: { mimeType: mime, data: base64Data } }
+                ]
+            }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: 300 },
+        });
+
+        const options = {
+            hostname: 'generativelanguage.googleapis.com',
+            path: `/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+        };
+
+        const request = https.request(options, (response) => {
+            let data = '';
+            response.on('data', (chunk) => (data += chunk));
+            response.on('end', () => {
+                try {
+                    const parsed = JSON.parse(data);
+                    const text = parsed?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+
+                    // Cleanup any markdown artifacts just in case
+                    const cleanText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+                    const extracted = JSON.parse(cleanText);
+
+                    res.json({ success: true, data: extracted });
+                } catch (e) {
+                    res.status(500).json({ success: false, message: 'Failed to extract receipt data', err: e.message, raw: data });
+                }
+                resolve();
+            });
+        });
+
+        request.on('error', (err) => {
+            res.status(500).json({ success: false, message: 'Gemini request failed', error: err.message });
+            resolve();
+        });
+
+        request.end(body);
+    });
+};
+
+// ── POST /api/insights/command ─────────────────────────────────────────────
+const processCommand = async (req, res) => {
+    const { query } = req.body;
+    if (!query) return res.status(400).json({ success: false, message: 'query is required' });
+
+    const VALID_CATS = ['Food', 'Transport', 'Shopping', 'Bills', 'Health', 'Education', 'Entertainment', 'Other'];
+
+    const prompt = `You are the Omni-Search AI for a finance app. User input: "${query}"
+    
+Determine the precise intent:
+- NAVIGATE: User wants to go to a page (dashboard, expenses, analytics, budgets, insights, settings, subscriptions)
+- ADD_EXPENSE: User wants to log a transaction (e.g. "spent 500 on swiggy")
+- UNKNOWN: anything else
+
+Return ONLY raw JSON (no markdown \`\`\`) with:
+{
+  "intent": "NAVIGATE" | "ADD_EXPENSE" | "UNKNOWN",
+  "path": "/page_name", // only if NAVIGATE
+  "expense": { "title": "Store", "amount": 100, "category": "Food" } // only if ADD_EXPENSE (pick category from ${VALID_CATS.join(', ')} or Other)
+}`;
+
+    try {
+        const result = await callGemini(prompt);
+        const clean = result.replace(/```json/gi, '').replace(/```/g, '').trim();
+        res.json({ success: true, data: JSON.parse(clean) });
+    } catch {
+        res.json({ success: true, data: { intent: 'UNKNOWN' } });
+    }
+}
+
+module.exports = { getInsights, categorizeExpense, scanReceipt, processCommand };

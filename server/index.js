@@ -25,6 +25,7 @@ const logger = require('./config/logger');
 
 const connectDB = require('./config/db');
 const initializeFirebase = require('./config/firebase');
+const { startCronJobs } = require('./services/cronService');
 
 // Routes
 const userRoutes = require('./routes/userRoutes');
@@ -187,6 +188,10 @@ const PORT = parseInt(process.env.PORT) || 5000;
 const startServer = async () => {
     try {
         await connectDB();
+
+        // Start background automation
+        startCronJobs();
+
         const server = app.listen(PORT, () => {
             logger.info(`🚀 SmartSpend Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
         });

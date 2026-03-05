@@ -5,6 +5,7 @@ const { cacheResponse } = require('../middleware/cache');
 const {
     getSummary, getMonthlyTrends, getCategoryAnalytics,
     getDailySpending, getPaymentMethodBreakdown, getRecurringAnalysis,
+    getHeatmapData,
 } = require('../controllers/analyticsController');
 
 router.use(authenticate);
@@ -16,5 +17,6 @@ router.get('/categories', cacheResponse(300), getCategoryAnalytics);
 router.get('/daily', cacheResponse(300), getDailySpending);
 router.get('/payment-methods', cacheResponse(300), getPaymentMethodBreakdown);
 router.get('/recurring', cacheResponse(300), getRecurringAnalysis);
+router.get('/heatmap', cacheResponse(600), getHeatmapData);
 
 module.exports = router;

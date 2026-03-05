@@ -61,6 +61,7 @@ export const analyticsAPI = {
     getDaily: () => api.get('/analytics/daily'),
     getPaymentMethods: () => api.get('/analytics/payment-methods'),
     getRecurring: () => api.get('/analytics/recurring'),
+    getHeatmap: () => api.get('/analytics/heatmap'),
 };
 
 // -------- Budget API --------
@@ -101,6 +102,8 @@ export const exportAPI = {
 export const insightsAPI = {
     get: () => api.get('/insights'),
     categorize: (title) => api.post('/insights/categorize', { title }),
+    scanReceipt: (imageFile, mimeType) => api.post('/insights/scan-receipt', { imageFile, mimeType }),
+    command: (query) => api.post('/insights/command', { query }),
 };
 
 export default api;

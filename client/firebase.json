@@ -1,6 +1,5 @@
 {
     "hosting": {
-        "target": "smartspend-110530",
         "public": "dist",
         "ignore": [
             "firebase.json",

@@ -1,14 +1,46 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { analyticsAPI, expenseAPI } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Canvas } from '@react-three/fiber';
-import { Sphere, MeshDistortMaterial, OrbitControls, Stars, Float, Sparkles, Html } from '@react-three/drei';
+import { Sphere, MeshDistortMaterial, OrbitControls, Stars, Float, Sparkles } from '@react-three/drei';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
+import QuickAddModal from '../components/QuickAddModal';
+import WrappedModal from '../components/WrappedModal';
 
 const CATEGORY_COLORS = { Food: '#fbbf24', Transport: '#60a5fa', Shopping: '#a78bfa', Bills: '#f87171', Health: '#34d399', Education: '#fb923c', Entertainment: '#f472b6', Other: '#94a3b8' };
 const CATEGORY_EMOJI = { Food: '🍔', Transport: '🚗', Shopping: '🛍️', Bills: '⚡', Health: '💊', Education: '📚', Entertainment: '🎮', Other: '📌' };
+
+// ── Animated Counter ─────────────────────────────────────────────────────────
+function AnimatedCounter({ target, duration = 1200, prefix = '', suffix = '', colorClass = 'text-white' }) {
+    const [count, setCount] = useState(0);
+    const frameRef = useRef(null);
+
+    useEffect(() => {
+        const start = Date.now();
+        const animate = () => {
+            const elapsed = Date.now() - start;
+            const progress = Math.min(elapsed / duration, 1);
+            // Ease-out quad
+            const eased = 1 - (1 - progress) ** 3;
+            setCount(Math.round(eased * target));
+            if (progress < 1) frameRef.current = requestAnimationFrame(animate);
+        };
+        frameRef.current = requestAnimationFrame(animate);
+        return () => cancelAnimationFrame(frameRef.current);
+    }, [target, duration]);
+
+    return (
+        <div className="flex flex-col">
+            <div className={`text-4xl md:text-5xl font-black tracking-tighter ${colorClass} drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]`}>
+                <span className="opacity-70 text-2xl md:text-3xl mr-1 font-medium">{prefix}</span>
+                {count.toLocaleString('en-IN')}
+                <span className="opacity-70 text-2xl md:text-3xl ml-1 font-medium">{suffix}</span>
+            </div>
+        </div>
+    );
+}
 
 // ── 3D Background Engine ─────────────────────────────────────────────────────
 function SciFiGalaxy() {
@@ -77,6 +109,9 @@ export default function DashboardPage() {
     const [summary, setSummary] = useState(null);
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [quickAddOpen, setQuickAddOpen] = useState(false);
+    const [quickAddData, setQuickAddData] = useState(null);
+    const [wrappedOpen, setWrappedOpen] = useState(false);
 
     const loadData = useCallback(async () => {
         try {
@@ -91,6 +126,27 @@ export default function DashboardPage() {
         } finally {
             setLoading(false);
         }
+    }, []);
+
+    // Alt+N global shortcut to open Quick Add
+    useEffect(() => {
+        const handler = (e) => {
+            if (e.altKey && e.key.toLowerCase() === 'n') {
+                e.preventDefault();
+                setQuickAddData(null);
+                setQuickAddOpen(true);
+            }
+        };
+        const omniHandler = (e) => {
+            setQuickAddData(e.detail);
+            setQuickAddOpen(true);
+        };
+        window.addEventListener('keydown', handler);
+        window.addEventListener('open-quick-add', omniHandler);
+        return () => {
+            window.removeEventListener('keydown', handler);
+            window.removeEventListener('open-quick-add', omniHandler);
+        };
     }, []);
 
     useEffect(() => {
@@ -151,15 +207,48 @@ export default function DashboardPage() {
                             Welcome back, Agent {dbUser?.displayName?.split(' ')[0] || 'User'}. Your financial metrics are fully synced and rendering in real-time.
                         </p>
                     </div>
+
+                    <motion.button
+                        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                        onClick={() => setWrappedOpen(true)}
+                        className="bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 text-white font-black uppercase text-sm px-6 py-3 rounded-xl tracking-widest shadow-[0_4px_30px_rgba(236,72,153,0.3)] hover:shadow-[0_4px_40px_rgba(236,72,153,0.5)] transition-all flex items-center gap-2"
+                    >
+                        ▶ Play Wrapped
+                    </motion.button>
                 </motion.div>
+
+                {/* Quick Add FAB */}
+                <motion.button
+                    onClick={() => setQuickAddOpen(true)}
+                    whileHover={{ scale: 1.1, boxShadow: '0 0 30px rgba(16,185,129,0.5)' }}
+                    whileTap={{ scale: 0.9 }}
+                    title="Quick Add Expense (Alt+N)"
+                    className="fixed bottom-8 right-8 z-50 w-14 h-14 rounded-full flex items-center justify-center text-2xl"
+                    style={{
+                        background: 'linear-gradient(135deg, #10b981, #0ea5e9)',
+                        boxShadow: '0 4px 24px rgba(16,185,129,0.35), 0 0 0 1px rgba(16,185,129,0.2)',
+                    }}
+                >
+                    ＋
+                </motion.button>
+
+                {/* Quick Add Modal */}
+                <AnimatePresence>
+                    {quickAddOpen && (
+                        <QuickAddModal
+                            onClose={() => setQuickAddOpen(false)}
+                            onAdded={loadData}
+                        />
+                    )}
+                </AnimatePresence>
 
                 {/* ── Core Metrics Grid ── */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <GlassPane delay={0.1}>
-                        <NeonValue
-                            label="Total Spend / MTD"
+                        <span className="text-xs uppercase tracking-[0.2em] text-slate-400 font-bold mb-2 block">Total Spend / MTD</span>
+                        <AnimatedCounter
+                            target={Math.round(summary?.totalThisMonth || 0)}
                             prefix="₹"
-                            value={summary?.totalThisMonth?.toLocaleString('en-IN') || 0}
                             colorClass="text-white"
                         />
                         <div className="mt-auto pt-6 flex justify-between items-center text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -170,10 +259,10 @@ export default function DashboardPage() {
 
                     <GlassPane delay={0.2} className="relative overflow-hidden group">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-[#10b981] rounded-full mix-blend-screen filter blur-[50px] opacity-20 group-hover:opacity-40 transition-opacity duration-700" />
-                        <NeonValue
-                            label="Daily Telemetry"
+                        <span className="text-xs uppercase tracking-[0.2em] text-slate-400 font-bold mb-2 block">Daily Telemetry</span>
+                        <AnimatedCounter
+                            target={Math.round(summary?.totalToday || 0)}
                             prefix="₹"
-                            value={summary?.totalToday?.toLocaleString('en-IN') || 0}
                             colorClass="text-[#10b981]"
                         />
                         <div className="mt-auto pt-6 flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -217,6 +306,49 @@ export default function DashboardPage() {
                         </div>
                     </GlassPane>
                 </div>
+
+                {/* ── Month-End Prediction Card ── */}
+                <GlassPane delay={0.45} className="mb-6">
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div>
+                            <span className="text-xs uppercase tracking-[0.2em] text-[#fbbf24] font-bold mb-2 block flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 bg-[#fbbf24] rounded-full animate-pulse inline-block" />
+                                AI Month-End Forecast
+                            </span>
+                            <div className="text-3xl font-black text-[#fbbf24]">
+                                ₹{(summary?.predictedMonthEnd || 0).toLocaleString('en-IN')}
+                            </div>
+                            <div className="text-slate-400 text-xs mt-1 font-medium">
+                                Projected spend · Day {summary?.dayOfMonth || 0} of {summary?.daysInMonth || 30}
+                            </div>
+                        </div>
+
+                        {/* Burn-rate progress */}
+                        <div className="flex-1 max-w-md">
+                            <div className="flex justify-between text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                                <span>Burn Rate</span>
+                                <span className="text-[#fbbf24]">{summary?.dayOfMonth}/{summary?.daysInMonth} days</span>
+                            </div>
+                            <div className="h-2 w-full bg-[#0f172a] rounded-full overflow-hidden">
+                                <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${((summary?.dayOfMonth || 0) / (summary?.daysInMonth || 30)) * 100}%` }}
+                                    transition={{ duration: 1.2, ease: 'easeOut', delay: 0.5 }}
+                                    className="h-full rounded-full bg-gradient-to-r from-[#fbbf24] to-[#f59e0b]"
+                                    style={{ boxShadow: '0 0 10px rgba(251,191,36,0.5)' }}
+                                />
+                            </div>
+                            {summary?.monthlyBudget > 0 && (
+                                <div className="text-xs text-slate-500 mt-2">
+                                    {summary.predictedMonthEnd > summary.monthlyBudget
+                                        ? <span className="text-red-400 font-bold">⚠ On pace to exceed budget by ₹{(summary.predictedMonthEnd - summary.monthlyBudget).toLocaleString('en-IN')}</span>
+                                        : <span className="text-[#10b981] font-bold">✓ On track to save ₹{(summary.monthlyBudget - summary.predictedMonthEnd).toLocaleString('en-IN')}</span>
+                                    }
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </GlassPane>
 
                 {/* ── Data Streams & Visualizations ── */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -316,6 +448,15 @@ export default function DashboardPage() {
 
                 </div>
             </div>
+            {quickAddOpen && (
+                <QuickAddModal
+                    onClose={() => setQuickAddOpen(false)}
+                    onAdded={() => { loadData(); setQuickAddOpen(false); }}
+                    initialData={quickAddData}
+                />
+            )}
+
+            {wrappedOpen && <WrappedModal onClose={() => setWrappedOpen(false)} />}
         </div>
     );
 }

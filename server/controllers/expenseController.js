@@ -43,6 +43,7 @@ const getExpenses = async (req, res) => {
     const filter = { userId: req.user._id };
     if (category) filter.category = category;
     if (paymentMethod) filter.paymentMethod = paymentMethod;
+    if (req.query.isRecurring !== undefined) filter.isRecurring = req.query.isRecurring === 'true';
     if (startDate || endDate) {
         filter.date = {};
         if (startDate) filter.date.$gte = new Date(startDate);
