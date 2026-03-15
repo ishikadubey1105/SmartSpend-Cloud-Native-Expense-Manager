@@ -1,0 +1,72 @@
+{
+    "nav": {
+        "dashboard": "Dashboard",
+        "expenses": "Expenses",
+        "analytics": "Analytics",
+        "budgets": "Budgets",
+        "insights": "AI Insights",
+        "subscriptions": "Subscriptions",
+        "chat": "AI Chat",
+        "alerts": "Alerts",
+        "settings": "Settings",
+        "overview": "OVERVIEW",
+        "finance": "FINANCE",
+        "intelligence": "INTELLIGENCE"
+    },
+    "common": {
+        "save": "Save Changes",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "loading": "Loading...",
+        "search": "Search",
+        "noData": "No data available",
+        "signOut": "Sign Out"
+    },
+    "settings": {
+        "title": "Settings",
+        "subtitle": "Manage your account and preferences",
+        "displayName": "Display Name",
+        "monthlyBudget": "Overall Monthly Budget (₹)",
+        "budgetHint": "Used for the dashboard budget gauge",
+        "currency": "Currency",
+        "language": "Language",
+        "langHint": "Choose your preferred display language",
+        "profileTitle": "Profile",
+        "aboutTitle": "About SmartSpend"
+    },
+    "chat": {
+        "title": "AI Financial Advisor",
+        "subtitle": "Ask me anything about your spending, budgets, or savings goals",
+        "placeholder": "Ask about your finances...",
+        "send": "Send",
+        "thinking": "Analyzing your financial data...",
+        "welcome": "Hello! I'm your SmartSpend AI assistant. Ask me anything about your expenses, budgets, or financial goals. I have full access to your spending data.",
+        "suggestions": {
+            "spending": "How much did I spend this month?",
+            "budget": "Am I on track with my budget?",
+            "savings": "Where can I save money?",
+            "compare": "Compare this month vs last month"
+        }
+    },
+    "notifications": {
+        "title": "Alerts & Anomalies",
+        "subtitle": "AI-detected spending anomalies and smart notifications",
+        "noAlerts": "All Clear",
+        "noAlertsDesc": "No spending anomalies detected. Your finances look healthy!",
+        "severity": {
+            "high": "High",
+            "medium": "Medium",
+            "low": "Low"
+        }
+    },
+    "dashboard": {
+        "commandCenter": "Command Center",
+        "welcomeBack": "Welcome back, Agent {{name}}. Your financial metrics are fully synced and rendering in real-time.",
+        "totalSpend": "Total Spend / MTD",
+        "dailyTelemetry": "Daily Telemetry",
+        "budgetIntegrity": "Core Budget Integrity",
+        "forecast": "AI Month-End Forecast",
+        "vectorBreakdown": "Vector Breakdown",
+        "liveStream": "Live Transaction Stream"
+    }
+}

@@ -1,21 +1,25 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import QuickAddModal from './QuickAddModal';
 import { AnimatePresence, motion } from 'framer-motion';
 
-const NAV = [
-    { to: '/dashboard', icon: '⚡', label: 'Dashboard' },
-    { to: '/expenses', icon: '💳', label: 'Expenses' },
-    { to: '/analytics', icon: '📊', label: 'Analytics' },
-    { to: '/budgets', icon: '🎯', label: 'Budgets' },
-    { to: '/insights', icon: '🤖', label: 'AI Insights' },
-    { to: '/subscriptions', icon: '♾️', label: 'Subscriptions', badge: 'NEW' },
+const NAV_KEYS = [
+    { to: '/dashboard', icon: '⚡', labelKey: 'nav.dashboard' },
+    { to: '/expenses', icon: '💳', labelKey: 'nav.expenses' },
+    { to: '/analytics', icon: '📊', labelKey: 'nav.analytics' },
+    { to: '/budgets', icon: '🎯', labelKey: 'nav.budgets' },
+    { to: '/insights', icon: '🤖', labelKey: 'nav.insights' },
+    { to: '/subscriptions', icon: '♾️', labelKey: 'nav.subscriptions', badge: 'NEW' },
+    { to: '/chat', icon: '💬', labelKey: 'nav.chat' },
+    { to: '/notifications', icon: '🔔', labelKey: 'nav.alerts' },
 ];
 
 export default function Layout({ children }) {
     const { user, dbUser, signOut } = useAuth();
+    const { t, i18n } = useTranslation();
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [quickAddOpen, setQuickAddOpen] = useState(false);
     const [quickAddData, setQuickAddData] = useState(null);
@@ -66,7 +70,16 @@ export default function Layout({ children }) {
 
     const displayName = dbUser?.displayName || user?.displayName || user?.email?.split('@')[0] || 'User';
     const avatarInitial = displayName.charAt(0).toUpperCase();
-    const pageTitle = NAV.find((n) => location.pathname.startsWith(n.to))?.label || 'SmartSpend';
+    const pageTitle = (() => {
+        const found = NAV_KEYS.find((n) => location.pathname.startsWith(n.to));
+        return found ? t(found.labelKey) : 'SmartSpend';
+    })();
+
+    const toggleLang = () => {
+        const next = i18n.language === 'en' ? 'hi' : 'en';
+        i18n.changeLanguage(next);
+        localStorage.setItem('smartspend-lang', next);
+    };
 
     return (
         <div className="app-layout">
@@ -119,15 +132,15 @@ export default function Layout({ children }) {
 
                 {/* Nav */}
                 <nav className="sidebar-nav" role="navigation" aria-label="App sections">
-                    <div className="nav-section-title">Main Menu</div>
-                    {NAV.map((item) => (
+                    <div className="nav-section-title">{t('nav.overview')}</div>
+                    {NAV_KEYS.map((item) => (
                         <NavLink
                             key={item.to}
                             to={item.to}
                             className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
                         >
                             <span className="nav-item-icon">{item.icon}</span>
-                            {item.label}
+                            {t(item.labelKey)}
                             {item.badge && (
                                 <span style={{
                                     marginLeft: 'auto',
@@ -147,15 +160,22 @@ export default function Layout({ children }) {
                         to="/settings"
                         className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
                     >
-                        <span className="nav-item-icon">⚙️</span> Settings
+                        <span className="nav-item-icon">⚙️</span> {t('nav.settings')}
                     </NavLink>
+                    <button
+                        onClick={toggleLang}
+                        className="nav-item"
+                        style={{ width: '100%', background: 'none', border: '1px solid transparent', textAlign: 'left', cursor: 'pointer' }}
+                    >
+                        <span className="nav-item-icon">🌐</span> {i18n.language === 'en' ? 'हिंदी' : 'English'}
+                    </button>
                     <button
                         onClick={handleSignOut}
                         className="nav-item"
                         aria-label="Sign out"
                         style={{ width: '100%', background: 'none', border: '1px solid transparent', textAlign: 'left', cursor: 'pointer', color: 'var(--danger)', marginTop: 'auto' }}
                     >
-                        <span className="nav-item-icon">🚪</span> Sign Out
+                        <span className="nav-item-icon">🚪</span> {t('common.signOut')}
                     </button>
                 </nav>
 

@@ -10,6 +10,8 @@ import BudgetPage from './pages/BudgetPage';
 import SettingsPage from './pages/SettingsPage';
 import InsightsPage from './pages/InsightsPage';
 import SubscriptionsPage from './pages/SubscriptionsPage';
+import ChatPage from './pages/ChatPage';
+import NotificationsPage from './pages/NotificationsPage';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -41,6 +43,8 @@ export default function App() {
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/insights" element={<InsightsPage />} />
                 <Route path="/subscriptions" element={<SubscriptionsPage />} />
+                <Route path="/chat" element={<ChatPage />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </Layout>
