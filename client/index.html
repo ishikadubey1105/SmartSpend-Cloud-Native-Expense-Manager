@@ -1,25 +1,66 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#7c3aed" />
-    <meta name="description" content="SmartSpend — Cloud-native expense management. Track, analyze, and control your finances with AI-powered insights." />
 
-    <!-- PWA -->
-    <link rel="manifest" href="/manifest.json" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <meta name="theme-color" content="#7c3aed" />
+  <meta name="color-scheme" content="dark" />
 
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <!-- SEO -->
+  <title>SmartSpend — AI-Powered Cloud Expense Manager</title>
+  <meta name="description"
+    content="SmartSpend is an AI-powered expense manager that helps you track spending, set budgets, scan receipts, and get personalized financial insights — all in one beautiful cloud-native app." />
+  <meta name="keywords"
+    content="expense tracker, budget manager, AI finance, receipt scanner, personal finance, spending analytics, SmartSpend" />
+  <meta name="author" content="SmartSpend" />
 
-    <title>SmartSpend — Cloud Expense Manager</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+  <!-- Open Graph / Social -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="SmartSpend — AI-Powered Cloud Expense Manager" />
+  <meta property="og:description"
+    content="Track every rupee, visualize spending, set budgets, and get AI insights — all in one cloud-native platform." />
+  <meta property="og:image" content="/og-preview.png" />
+  <meta property="og:url" content="https://smartspend.web.app" />
+  <meta property="og:site_name" content="SmartSpend" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="SmartSpend — AI-Powered Cloud Expense Manager" />
+  <meta name="twitter:description"
+    content="Track expenses, scan receipts with AI, get personalized financial insights." />
+  <meta name="twitter:image" content="/og-preview.png" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <!-- Preconnect & Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+
+  <!-- DNS Prefetch for API -->
+  <link rel="dns-prefetch" href="https://generativelanguage.googleapis.com" />
+</head>
+
+<body>
+  <noscript>
+    <div
+      style="padding: 2rem; text-align: center; font-family: system-ui; color: #e2e8f0; background: #06061a; min-height: 100vh; display: flex; align-items: center; justify-content: center;">
+      <div>
+        <h1>SmartSpend requires JavaScript</h1>
+        <p>Please enable JavaScript in your browser to use this application.</p>
+      </div>
+    </div>
+  </noscript>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
 </html>

@@ -131,8 +131,8 @@ export default function ChatPage() {
         setLoading(true);
 
         try {
-            const res = await insightsAPI.command(query);
-            const reply = res?.data?.reply || res?.data?.response || res?.reply || res?.response || 'I analyzed your data but couldn\'t generate a response. Please try again.';
+            const res = await insightsAPI.chat(query);
+            const reply = res?.reply || res?.data?.reply || res?.data?.response || 'I analyzed your data but couldn\'t generate a response. Please try again.';
             setMessages(prev => [...prev, { role: 'ai', text: reply }]);
         } catch (err) {
             const errMsg = err.message || 'Unable to get a response. Please check your backend connection.';

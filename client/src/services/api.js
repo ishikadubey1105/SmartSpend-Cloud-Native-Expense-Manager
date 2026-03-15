@@ -104,6 +104,7 @@ export const insightsAPI = {
     categorize: (title) => api.post('/insights/categorize', { title }),
     scanReceipt: (imageFile, mimeType) => api.post('/insights/scan-receipt', { imageFile, mimeType }),
     command: (query) => api.post('/insights/command', { query }),
+    chat: (query) => api.post('/insights/chat', { query }),
 };
 
 export default api;

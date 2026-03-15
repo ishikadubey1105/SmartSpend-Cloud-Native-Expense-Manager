@@ -10,9 +10,16 @@ const SEVERITY_STYLES = {
     low: { bg: 'var(--success-subtle)', color: 'var(--success)', border: 'rgba(16,185,129,0.25)', icon: '🟢' },
 };
 
+function getSeverity(zScore) {
+    const z = parseFloat(zScore);
+    if (z >= 3.0) return 'high';
+    if (z >= 2.5) return 'medium';
+    return 'low';
+}
+
 function AnomalyCard({ anomaly, index }) {
-    const severity = anomaly.severity || 'medium';
-    const style = SEVERITY_STYLES[severity] || SEVERITY_STYLES.medium;
+    const severity = getSeverity(anomaly.zScore);
+    const style = SEVERITY_STYLES[severity];
     const { t } = useTranslation();
 
     return (
@@ -31,10 +38,8 @@ function AnomalyCard({ anomaly, index }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
                     <span style={{ fontSize: '1.25rem' }}>{style.icon}</span>
                     <div>
-                        <div style={{ fontWeight: 700, fontSize: '1rem' }}>{anomaly.title || anomaly.message}</div>
-                        {anomaly.category && (
-                            <span className="badge badge-primary" style={{ marginTop: 4 }}>{anomaly.category}</span>
-                        )}
+                        <div style={{ fontWeight: 700, fontSize: '1rem' }}>{anomaly.title}</div>
+                        <span className="badge badge-primary" style={{ marginTop: 4 }}>{anomaly.category}</span>
                     </div>
                 </div>
                 <span
@@ -47,25 +52,23 @@ function AnomalyCard({ anomaly, index }) {
                         letterSpacing: '0.05em',
                     }}
                 >
-                    {t(`notifications.severity.${severity}`)}
+                    {t(`notifications.severity.${severity}`)} • z={anomaly.zScore}
                 </span>
             </div>
 
-            {anomaly.description && (
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: 1.6, marginBottom: 'var(--space-3)' }}>
-                    {anomaly.description}
-                </p>
-            )}
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: 1.6, marginBottom: 'var(--space-3)' }}>
+                This expense is significantly higher than your average for <strong>{anomaly.category}</strong>.
+                Your typical spend in this category averages around ₹{anomaly.categoryMean?.toLocaleString('en-IN')}.
+            </p>
 
             <div style={{ display: 'flex', gap: 'var(--space-4)', flexWrap: 'wrap', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-                {anomaly.amount && (
-                    <span>Amount: <strong style={{ color: style.color }}>₹{anomaly.amount.toLocaleString('en-IN')}</strong></span>
-                )}
-                {anomaly.expectedAmount && (
-                    <span>Expected: <strong>₹{anomaly.expectedAmount.toLocaleString('en-IN')}</strong></span>
-                )}
+                <span>Amount: <strong style={{ color: style.color }}>₹{anomaly.amount?.toLocaleString('en-IN')}</strong></span>
+                <span>Category Avg: <strong>₹{anomaly.categoryMean?.toLocaleString('en-IN')}</strong></span>
                 {anomaly.date && (
                     <span>{new Date(anomaly.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                )}
+                {anomaly.paymentMethod && (
+                    <span className="badge" style={{ fontSize: '0.7rem' }}>{anomaly.paymentMethod}</span>
                 )}
             </div>
         </motion.div>
@@ -80,7 +83,11 @@ export default function NotificationsPage() {
     const load = useCallback(async () => {
         try {
             const res = await expenseAPI.getAnomalies();
-            setAnomalies(res.data || res || []);
+            // API returns { success, data: [...] } — handle both shapes
+            const data = Array.isArray(res) ? res : (res?.data || []);
+            // Sort by z-score descending (most anomalous first)
+            data.sort((a, b) => parseFloat(b.zScore) - parseFloat(a.zScore));
+            setAnomalies(data);
         } catch (err) {
             toast.error('Could not load anomaly data');
             console.error(err);
@@ -114,6 +121,17 @@ export default function NotificationsPage() {
                 <p className="text-secondary" style={{ fontSize: '0.875rem', marginTop: 'var(--space-2)' }}>
                     {t('notifications.subtitle')}
                 </p>
+                {anomalies.length > 0 && (
+                    <div style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)',
+                        marginTop: 'var(--space-3)',
+                        padding: '4px 14px', borderRadius: 'var(--radius-full)',
+                        background: 'var(--danger-subtle)', border: '1px solid rgba(239,68,68,0.2)',
+                        fontSize: '0.8125rem', fontWeight: 600, color: 'var(--danger)',
+                    }}>
+                        {anomalies.length} anomal{anomalies.length === 1 ? 'y' : 'ies'} detected
+                    </div>
+                )}
             </div>
 
             {anomalies.length > 0 ? (

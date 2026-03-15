@@ -251,4 +251,63 @@ Return ONLY raw JSON (no markdown \`\`\`) with:
     }
 }
 
-module.exports = { getInsights, categorizeExpense, scanReceipt, processCommand };
+// ── POST /api/insights/chat ───────────────────────────────────────────────────
+const chatWithAI = async (req, res) => {
+    const { query } = req.body;
+    if (!query) return res.status(400).json({ success: false, message: 'query is required' });
+
+    const userId = new ObjectId(req.user._id);
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+    // Gather user's financial context
+    const [categoryStats, recentExpenses, budgets] = await Promise.all([
+        Expense.aggregate([
+            { $match: { userId, date: { $gte: startOfMonth, $lte: endOfMonth } } },
+            { $group: { _id: '$category', total: { $sum: '$amount' }, count: { $sum: 1 } } },
+            { $sort: { total: -1 } },
+        ]),
+        Expense.find({ userId }).sort({ date: -1 }).limit(15).lean(),
+        Budget.find({ userId, month: now.getMonth() + 1, year: now.getFullYear() }).lean(),
+    ]);
+
+    const totalSpent = categoryStats.reduce((s, c) => s + c.total, 0);
+    const monthlyBudget = req.user.monthlyBudget || 0;
+    const dayOfMonth = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const projected = dayOfMonth > 0 ? Math.round((totalSpent / dayOfMonth) * daysInMonth) : 0;
+
+    const budgetStatus = budgets.map((b) => {
+        const cat = categoryStats.find((c) => c._id === b.category);
+        const pct = cat ? Math.round((cat.total / b.limit) * 100) : 0;
+        return `${b.category}: ₹${cat?.total || 0} of ₹${b.limit} (${pct}%)`;
+    }).join(', ') || 'No budgets set';
+
+    const prompt = `You are SmartSpend AI — a brilliant, friendly personal finance advisor. The user has asked: "${query}"
+
+## User's Current Financial Context
+- **Month:** ${now.toLocaleString('en-IN', { month: 'long', year: 'numeric' })}
+- **Total spent this month:** ₹${totalSpent.toLocaleString('en-IN')}
+- **Monthly budget:** ₹${monthlyBudget ? monthlyBudget.toLocaleString('en-IN') : 'Not set'}
+- **Day ${dayOfMonth} of ${daysInMonth}** — Projected month-end: ₹${projected.toLocaleString('en-IN')}
+- **Budget status:** ${budgetStatus}
+
+## Category Spending This Month:
+${categoryStats.map((c) => `- ${c._id}: ₹${Math.round(c.total).toLocaleString('en-IN')} (${c.count} txns)`).join('\n') || 'No expenses yet'}
+
+## Recent Transactions:
+${recentExpenses.slice(0, 10).map((e) => `- ₹${e.amount} — ${e.title} (${e.category}, ${new Date(e.date).toLocaleDateString('en-IN')})`).join('\n') || 'None'}
+
+Answer the user's question specifically based on their real data above. Be conversational, helpful, and use ₹ symbol. Keep your response concise (3-5 lines) unless the question requires more detail. Use markdown formatting if helpful.`;
+
+    try {
+        const reply = await callGemini(prompt);
+        res.json({ success: true, reply });
+    } catch (e) {
+        logger.error('Chat AI error:', e);
+        res.status(500).json({ success: false, message: 'AI chat failed' });
+    }
+};
+
+module.exports = { getInsights, categorizeExpense, scanReceipt, processCommand, chatWithAI };
