@@ -149,7 +149,7 @@ npm run dev
 
 <div align="center">
   <br/>
-  <strong>Built with ❤️ by Ishika Dubey</strong>
+  <strong>Built with by Ishika Dubey</strong>
   <br/>
   SmartSpend PBL Project 2026 — AIML Edition
 </div>

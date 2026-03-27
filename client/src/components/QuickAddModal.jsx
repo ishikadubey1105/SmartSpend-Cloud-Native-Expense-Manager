@@ -183,19 +183,19 @@ export default function QuickAddModal({ onClose, onAdded, initialData }) {
             {/* Modal */}
             <motion.div
                 key="modal"
-                initial={{ opacity: 0, scale: 0.88, y: 30 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                initial={{ opacity: 0, scale: 0.88, x: '-50%', y: '-40%' }}
+                animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
+                exit={{ opacity: 0, scale: 0.9, x: '-50%', y: '-40%' }}
                 transition={{ type: 'spring', bounce: 0.3, duration: 0.5 }}
                 style={{
                     position: 'fixed', top: '50%', left: '50%', zIndex: 9001,
-                    transform: 'translate(-50%, -50%)',
                     width: 'min(520px, 95vw)',
-                    background: 'linear-gradient(135deg, rgba(15,23,42,0.98), rgba(2,6,23,0.98))',
-                    border: '1px solid rgba(14,165,233,0.15)',
+                    maxHeight: '90vh',
+                    overflowY: 'auto',
+                    background: 'var(--bg-elevated, linear-gradient(135deg, rgba(15,23,42,0.98), rgba(2,6,23,0.98)))',
+                    border: '1px solid var(--border, rgba(14,165,233,0.15))',
                     borderRadius: 24,
-                    overflow: 'hidden',
-                    boxShadow: '0 30px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(14,165,233,0.05)',
+                    boxShadow: 'var(--shadow-lg, 0 30px 80px rgba(0,0,0,0.8))',
                 }}
                 onClick={e => e.stopPropagation()}
             >

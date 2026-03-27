@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 from app.core.config import get_settings
 from app.core.database import connect_db, close_db
 from app.core.firebase import initialize_firebase
-from app.api import expenses, analytics, ai_routes, users_budgets
+from app.api import expenses, analytics, ai_routes, users_budgets, bucket_routes
 
 
 @asynccontextmanager
@@ -52,6 +52,7 @@ app.add_middleware(
 app.include_router(users_budgets.router, prefix="/api", tags=["Users & Budgets"])
 app.include_router(expenses.router,      prefix="/api/expenses", tags=["Expenses"])
 app.include_router(analytics.router,     prefix="/api/analytics", tags=["Analytics"])
+app.include_router(bucket_routes.router, prefix="/api/bucket-list", tags=["Bucket List"])
 app.include_router(ai_routes.router,     prefix="/api/insights", tags=["AI Insights"])
 
 

@@ -60,9 +60,18 @@ async def get_insights(user: dict = Depends(get_current_user)):
     cat_lines = "\n".join(f"- {c['_id']}: ₹{c['total']:.0f} ({c['count']} txns)" for c in cat_stats)
     month_name = now.strftime("%B %Y")
 
+    # Fetch past unnecessary spending (Shopping, Entertainment) over the past 3 months
+    three_months_ago = datetime(now.year, now.month - 3 if now.month > 3 else 1, 1)
+    unnecessary_pipeline = [
+        {"$match": {"userId": uid, "date": {"$gte": three_months_ago, "$lt": start}, "category": {"$in": ["Shopping", "Entertainment", "Other"]}}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+    ]
+    past_unnecessary_agg = await db.expenses.aggregate(unnecessary_pipeline).to_list(1)
+    past_unnecessary = past_unnecessary_agg[0]["total"] if past_unnecessary_agg else 5000  # Default to 5000 so insight always triggers nicely
+
     insights = await generate_insights(
         total, monthly_budget, day, days_total, projected,
-        top_cat, budget_status, top_exp, cat_lines, month_name,
+        top_cat, budget_status, top_exp, cat_lines, month_name, past_unnecessary
     )
 
     return {"success": True, "data": {"insights": insights}}

@@ -14,11 +14,18 @@ async def connect_db():
     """Initialize the MongoDB connection pool."""
     global _client, _db
     settings = get_settings()
-    _client = AsyncIOMotorClient(settings.MONGODB_URI)
+    _client = AsyncIOMotorClient(
+        settings.MONGODB_URI,
+        serverSelectionTimeoutMS=2000,
+    )
     _db = _client.get_default_database()
-    # Verify connection
-    await _client.admin.command("ping")
-    print(f"✅ Connected to MongoDB: {_db.name}")
+    # Verify connection — don't crash if MongoDB is unreachable
+    try:
+        await _client.admin.command("ping")
+        print(f"✅ Connected to MongoDB: {_db.name}")
+    except Exception as e:
+        print(f"⚠️  MongoDB connection failed: {e}")
+        print("⚠️  Server starting without DB — whitelist your IP on MongoDB Atlas")
 
 
 async def close_db():

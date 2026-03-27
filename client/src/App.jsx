@@ -9,7 +9,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const ExpensesPage = lazy(() => import('./pages/ExpensesPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
-const BudgetsPage = lazy(() => import('./pages/BudgetsPage'));
+const BudgetsPage = lazy(() => import('./pages/BudgetPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const InsightsPage = lazy(() => import('./pages/InsightsPage'));
 const SubscriptionsPage = lazy(() => import('./pages/SubscriptionsPage'));

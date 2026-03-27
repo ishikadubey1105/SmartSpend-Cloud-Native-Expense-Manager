@@ -63,6 +63,8 @@ class UserUpdate(BaseModel):
     monthlyBudget: Optional[float] = None
     currency: Optional[Literal["INR", "USD", "EUR", "GBP"]] = None
     language: Optional[Literal["en", "hi"]] = None
+    age: Optional[int] = None
+    gender: Optional[str] = None
 
 
 # ── AI / Insights Models ─────────────────────────────────────────────────────
@@ -81,3 +83,15 @@ class ReceiptScanRequest(BaseModel):
 
 class CommandRequest(BaseModel):
     query: str = Field(..., min_length=1)
+
+# ── Bucket List Models ────────────────────────────────────────────────────────
+class BucketListCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=100)
+    targetAmount: float = Field(..., gt=0)
+    category: Optional[str] = "Festival"
+
+class BucketListUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=100)
+    targetAmount: Optional[float] = Field(None, gt=0)
+    category: Optional[str] = None
+    isFulfilled: Optional[bool] = None

@@ -3,11 +3,12 @@ import { analyticsAPI, expenseAPI } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Canvas } from '@react-three/fiber';
-import { Sphere, MeshDistortMaterial, OrbitControls, Stars, Float, Sparkles } from '@react-three/drei';
+import { Icosahedron, OrbitControls, Float } from '@react-three/drei';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import QuickAddModal from '../components/QuickAddModal';
 import WrappedModal from '../components/WrappedModal';
+import BucketListWidget from '../components/BucketListWidget';
 
 const CATEGORY_COLORS = { Food: '#fbbf24', Transport: '#60a5fa', Shopping: '#a78bfa', Bills: '#f87171', Health: '#34d399', Education: '#fb923c', Entertainment: '#f472b6', Other: '#94a3b8' };
 const CATEGORY_EMOJI = { Food: '🍔', Transport: '🚗', Shopping: '🛍️', Bills: '⚡', Health: '💊', Education: '📚', Entertainment: '🎮', Other: '📌' };
@@ -42,29 +43,25 @@ function AnimatedCounter({ target, duration = 1200, prefix = '', suffix = '', co
     );
 }
 
-// ── 3D Background Engine ─────────────────────────────────────────────────────
-function SciFiGalaxy() {
+// ── 3D Background Engine (Performant) ─────────────────────────────────────────
+function FastInfographic3D() {
     return (
-        <Canvas style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: -1, background: '#020617', pointerEvents: 'none' }}>
-            <ambientLight intensity={0.5} />
-            <directionalLight position={[10, 10, 10]} intensity={2} color="#0df259" />
-            <directionalLight position={[-10, -10, -10]} intensity={2} color="#0ea5e9" />
-
-            <Stars radius={100} depth={50} count={6000} factor={4} saturation={1} fade speed={1.5} />
-            <Sparkles count={200} scale={20} size={4} speed={0.4} opacity={0.2} color="#10b981" />
-
-            <Float speed={2} rotationIntensity={1.5} floatIntensity={2} position={[4, 1, -10]}>
-                <Sphere args={[2.5, 64, 64]}>
-                    <MeshDistortMaterial color="#000000" envMapIntensity={1} clearcoat={1} clearcoatRoughness={0} metalness={0.9} roughness={0.1} distort={0.6} speed={2} emissive="#0ea5e9" emissiveIntensity={0.6} wireframe />
-                </Sphere>
+        <Canvas 
+            gl={{ antialias: false, powerPreference: "high-performance", alpha: true }}
+            dpr={[1, 1.5]} 
+            style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: -1, pointerEvents: 'none' }}
+        >
+            <Float speed={2} rotationIntensity={0.5} floatIntensity={1} position={[6, 3, -10]}>
+                <Icosahedron args={[4, 1]}>
+                    <meshBasicMaterial color="#FF6B35" wireframe transparent opacity={0.15} />
+                </Icosahedron>
             </Float>
-
-            <Float speed={3} rotationIntensity={2} floatIntensity={3} position={[-5, -3, -8]}>
-                <Sphere args={[1.5, 64, 64]}>
-                    <MeshDistortMaterial color="#000000" emissive="#10b981" emissiveIntensity={0.8} metalness={1} roughness={0} distort={0.5} speed={4} wireframe />
-                </Sphere>
+            <Float speed={2.5} rotationIntensity={0.8} floatIntensity={1.5} position={[-6, -4, -15]}>
+                <Icosahedron args={[5, 1]}>
+                    <meshBasicMaterial color="#00E5FF" wireframe transparent opacity={0.15} />
+                </Icosahedron>
             </Float>
-            <OrbitControls enableZoom={false} enablePan={false} autoRotate autoRotateSpeed={0.5} />
+            <OrbitControls enableZoom={false} enablePan={false} autoRotate autoRotateSpeed={0.8} />
         </Canvas>
     );
 }
@@ -77,10 +74,10 @@ function GlassPane({ children, delay = 0, className = "" }) {
             animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
             transition={{ duration: 0.8, delay, type: "spring", bounce: 0.4 }}
             whileHover={{ y: -5, scale: 1.02, transition: { duration: 0.2 } }}
-            className={`relative backdrop-blur-2xl bg-[#0f172a]/40 border border-[#1e293b] shadow-[0_8px_32px_0_rgba(0,0,0,0.6)] rounded-[2rem] overflow-hidden ${className}`}
+            className={`card relative overflow-hidden ${className}`}
             style={{ transformStyle: 'preserve-3d', perspective: '1000px' }}
         >
-            <div className="absolute -inset-px bg-gradient-to-br from-[#0ea5e9]/20 via-transparent to-[#10b981]/20 opacity-0 hover:opacity-100 transition-opacity duration-700 pointer-events-none z-0" />
+            <div className="absolute -inset-px bg-gradient-to-br from-[var(--primary-glow)] via-transparent to-[var(--accent-glow)] opacity-0 hover:opacity-100 transition-opacity duration-700 pointer-events-none z-0" />
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
             <div className="relative z-10 p-6 sm:p-8 h-full flex flex-col">
                 {children}
@@ -161,33 +158,16 @@ export default function DashboardPage() {
     if (loading) {
         return (
             <div className="w-full h-[80vh] flex flex-col items-center justify-center pointer-events-none">
-                <style>{`
-                    .cyberspace-mode { background-color: #020617 !important; color: white !important; }
-                    .cyberspace-mode main { background: transparent !important; }
-                    .bg-surface { background: rgba(15, 23, 42, 0.4) !important; backdrop-filter: blur(12px) !important; border-color: rgba(255,255,255,0.05) !important; color: white !important; }
-                    .text-slate-800 { color: white !important; }
-                `}</style>
-                <div className="w-16 h-16 rounded-full border-t-2 border-b-2 border-[#0ea5e9] animate-spin border-t-transparent shadow-[0_0_15px_#0ea5e9]"></div>
-                <div className="mt-8 text-[#0ea5e9] tracking-[0.3em] font-bold text-sm uppercase animate-pulse">Initializing Spatial Matrix</div>
+                <div className="w-16 h-16 rounded-full border-t-2 border-b-2 border-[var(--primary)] animate-spin border-t-transparent"></div>
+                <div className="mt-8 text-[var(--primary)] tracking-[0.3em] font-bold text-sm uppercase animate-pulse">Initializing Dashboard Data</div>
             </div>
         );
     }
 
     return (
-        <div className="relative min-h-full pb-12 overflow-hidden w-full text-slate-100">
-            {/* Global Override Styles to make it seamlessly dark across the whole app wrapper */}
-            <style>{`
-                .cyberspace-mode { background-color: #020617 !important; color: white !important; }
-                .cyberspace-mode .min-h-screen, .cyberspace-mode main { background: transparent !important; }
-                .bg-surface { background: rgba(15, 23, 42, 0.3) !important; backdrop-filter: blur(20px) !important; border-color: rgba(255,255,255,0.05) !important; color: white !important; }
-                .text-slate-800, .text-slate-900 { color: white !important; }
-                .text-slate-500, .text-slate-600 { color: #94a3b8 !important; }
-                .border-slate-100, .border-slate-200 { border-color: rgba(255,255,255,0.05) !important; }
-            `}</style>
-
-            <SciFiGalaxy />
-
-            <div className="relative z-10 w-full max-w-7xl mx-auto selection:bg-[#0ea5e9]/30">
+        <div className="relative min-h-full pb-12 w-full" style={{ color: 'var(--text-primary)' }}>
+            <FastInfographic3D />
+            <div className="relative z-10 w-full max-w-7xl mx-auto selection:bg-[var(--primary-subtle)]">
                 {/* Holographic Header */}
                 <motion.div
                     initial={{ opacity: 0, scale: 0.9, filter: 'blur(10px)' }}
@@ -306,6 +286,9 @@ export default function DashboardPage() {
                         </div>
                     </GlassPane>
                 </div>
+
+                {/* ── Bucket List Widget ── */}
+                <BucketListWidget />
 
                 {/* ── Month-End Prediction Card ── */}
                 <GlassPane delay={0.45} className="mb-6">

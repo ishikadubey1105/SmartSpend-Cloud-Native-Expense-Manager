@@ -23,9 +23,18 @@ export default function Layout({ children }) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [quickAddOpen, setQuickAddOpen] = useState(false);
     const [quickAddData, setQuickAddData] = useState(null);
+    const [theme, setTheme] = useState(localStorage.getItem('smartspend-theme') || 'dark-mode');
     const navigate = useNavigate();
     const location = useLocation();
     const sidebarRef = useRef(null);
+
+    useEffect(() => {
+        document.documentElement.classList.remove('light-mode', 'dark-mode');
+        if (theme === 'dark-mode') {
+            document.documentElement.classList.add('dark-mode');
+        }
+        localStorage.setItem('smartspend-theme', theme);
+    }, [theme]);
 
     // Close sidebar on route change (mobile nav)
     useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
@@ -162,6 +171,13 @@ export default function Layout({ children }) {
                     >
                         <span className="nav-item-icon">⚙️</span> {t('nav.settings')}
                     </NavLink>
+                    <button
+                        onClick={() => setTheme(prev => prev === 'dark-mode' ? 'light-mode' : 'dark-mode')}
+                        className="nav-item"
+                        style={{ width: '100%', background: 'none', border: '1px solid transparent', textAlign: 'left', cursor: 'pointer' }}
+                    >
+                        <span className="nav-item-icon">{theme === 'dark-mode' ? '☀️' : '🌙'}</span> {theme === 'dark-mode' ? 'Light Mode' : 'Dark Mode'}
+                    </button>
                     <button
                         onClick={toggleLang}
                         className="nav-item"

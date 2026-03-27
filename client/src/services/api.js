@@ -71,6 +71,15 @@ export const budgetAPI = {
     delete: (id) => api.delete(`/budgets/${id}`),
 };
 
+// -------- Bucket List API --------
+export const bucketAPI = {
+    getAll: () => api.get('/bucket-list'),
+    getReadiness: () => api.get('/bucket-list/readiness'),
+    create: (data) => api.post('/bucket-list', data),
+    update: (id, data) => api.patch(`/bucket-list/${id}`, data),
+    delete: (id) => api.delete(`/bucket-list/${id}`),
+};
+
 // -------- Export API --------
 export const exportAPI = {
     csvUrl: (params = {}) => {

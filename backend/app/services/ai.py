@@ -132,6 +132,7 @@ async def generate_insights(
     top_expenses: str,
     category_breakdown: str,
     month_name: str,
+    past_unnecessary_spent: float,
 ) -> str:
     """Generate comprehensive AI financial insights from user's spending data."""
     prompt = f"""You are SmartSpend AI — a brilliant, warm personal finance advisor. Analyze this user's expenses and give genuinely useful, specific insights.
@@ -153,7 +154,7 @@ async def generate_insights(
 ## Category Breakdown:
 {category_breakdown}
 
-Please provide these 4 sections in markdown:
+Please provide these 5 sections in markdown:
 
 ### 📊 Spending Pattern
 A 2-3 line analysis specific to THIS user's data. Mention actual numbers and categories.
@@ -166,6 +167,9 @@ Mention any category close to or over budget. If all good, say so.
 
 ### 🔮 Month-End Prediction
 Based on the pace (₹{projected_spend:,.0f} projected), what should they expect?
+
+### 🎉 Festival Smart Savings
+Diwali and upcoming festivals are near! You MUST mention they spent ₹{past_unnecessary_spent:,.0f} on unnecessary things (like shopping/entertainment) in recent months. Tell them how they could have saved this for the upcoming festival season or to fulfill items on their bucket list!
 
 Be specific to this person's numbers. Use ₹ symbol. Keep each section to 2-3 lines max."""
 
